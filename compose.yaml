@@ -1,0 +1,20 @@
+name: car-accident
+
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: car-accident-runtime:local
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    volumes:
+      - type: bind
+        source: ./data
+        target: /app/data
+      - type: bind
+        source: ./src/models
+        target: /app/src/models
+        bind:
+          create_host_path: false
