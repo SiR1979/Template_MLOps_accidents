@@ -114,10 +114,38 @@ checks occur before a run directory is created.
 
 A completed training run has `approved_for_delivery=false`.
 
-## 3. Proposed target architecture
+## 3. Local prepared-feature API
 
-Every component and connection in this diagram describes the target.
-Separate services and automated model delivery are not yet implemented.
+Implementation addition: 2026-10-06. Runtime validation must be established
+from the installation output, not from the presence of these files.
+
+`compose.api.yaml` adds `api` while keeping `workspace` unchanged. Its image
+extends the existing local runtime image. The selected model file is mounted
+read-only, and Windows exposes only `127.0.0.1:8000`. The service consumes
+prepared features; application input conversion and the UI remain pending.
+
+```mermaid
+flowchart TD
+    ART["Selected model file"] --> HASH["Verify SHA-256 and model contract"]
+    HASH -->|"Valid"| READY["Ready prediction API"]
+    HASH -->|"Invalid"| CLOSED["Readiness and predictions: 503"]
+    CLIENT["Local client: prepared features"] --> INPUT["Validate and order 28 features"]
+    INPUT --> READY
+    READY --> OUT["Class code, model hash and contract version"]
+```
+
+The service loads the selected artifact once and checks its ordered feature
+names, feature count, estimator type and class codes. It neither retrains nor
+changes historical delivery approval. Full input rules, artifact identity,
+health endpoints, commands and limitations are in [api-contract.md](api-contract.md).
+The following target diagram includes this local API; automated delivery and
+its acceptance gate are still planned.
+
+## 4. Target architecture and remaining work
+
+This diagram describes the target integration. The local prepared-feature API
+is implemented separately; the application, dedicated pipeline service,
+automated accepted-model delivery, tracking and full monitoring remain planned.
 Logical layers do not imply one microservice for every pipeline stage.
 
 ```mermaid
@@ -127,7 +155,7 @@ flowchart TD
     end
 
     subgraph SERVING["Prediction layer"]
-        API["api: input validation and prediction"]
+        API["api: implemented locally"]
     end
 
     subgraph JOBS["Training layer"]
@@ -165,24 +193,24 @@ flowchart TD
 | --- | --- |
 | `workspace` | Current development and test environment; may remain optional after responsibilities are covered |
 | `pipeline` | Proposed finite job for preprocessing and training; independent of prediction requests |
-| `api` | Proposed persistent prediction service using a selected model version |
+| `api` | Implemented local prepared-feature service with an explicit model hash |
 | `app` | Proposed separate interface that calls the API |
 | Tracking and storage | Record artifact identities, versions and run metadata |
 | Monitoring | Track failures, service health and agreed data/model indicators |
 
-Start with the local API and application. Add tracking, data/model
-versioning, configured triggers and controlled delivery in subsequent work.
+The local prepared-feature API is now included. The application remains the
+next delivery component. Add tracking, data/model versioning, configured
+triggers and controlled delivery in subsequent work.
 
 DVC and MLflow are recommended candidates for data versioning and
 run/model management respectively. Their deployment and configuration
 are not implemented or fixed by this document.
 
-The API input contract still needs to specify how application inputs map
-to the model's 28 ordered features, including types, encodings and missing
-values. The current reference example supplies already prepared features;
-it does not establish a complete raw-input serving pipeline.
+The prepared-feature contract is specified in `docs/api-contract.md`. Mapping
+raw application inputs to the model's 28 ordered features remains separate;
+the supplied example does not establish a complete raw-input serving pipeline.
 
-## 4. Limitations and open decisions
+## 5. Limitations and open decisions
 
 - The inherited successive target recodings map original codes
   `[1, 2, 3, 4]` to `[1, 1, 1, 0]`. Domain labels remain unconfirmed.
@@ -190,8 +218,9 @@ it does not establish a complete raw-input serving pipeline.
   This limits claims about prediction before intervention.
 - The measured model metrics are reference observations, not agreed
   quality thresholds. Agree thresholds before enforcing model acceptance.
-- No configured recurring trigger, implemented API/application, model
-  registry or complete monitoring workflow is evidenced.
+- No configured recurring trigger, implemented application, model registry
+  or complete monitoring workflow is evidenced. The API adds local liveness
+  and readiness endpoints only; they do not establish model quality approval.
 - Labelled predictive performance and unlabelled drift indicators must
   remain distinct.
 - Direct runtime dependencies are pinned; full dependency and base-image
