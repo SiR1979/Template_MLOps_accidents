@@ -1,0 +1,69 @@
+services:
+  mlflow:
+    image: car-accident-tracking:local
+    build:
+      context: ./src/tracking
+      dockerfile: Dockerfile
+    working_dir: /tracking
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --workers
+      - "1"
+      - --backend-store-uri
+      - sqlite:////tracking/mlflow.db
+      - --artifacts-destination
+      - /tracking/artifacts
+      - --serve-artifacts
+      - --allowed-hosts
+      - 127.0.0.1:5000,localhost:5000,mlflow:5000
+      - --cors-allowed-origins
+      - http://127.0.0.1:5000,http://localhost:5000
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - type: bind
+        source: ./data/tracking
+        target: /tracking
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('127.0.0.1',5000,timeout=3); c.request('GET','/version'); r=c.getresponse(); assert r.status==200 and r.read().decode().strip()=='3.17.0'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  tracking-import:
+    image: car-accident-tracking:local
+    profiles: ["tools"]
+    working_dir: /app
+    command: ["python", "-B", "-m", "src.tracking.import_reference_run"]
+    volumes:
+      - type: bind
+        source: ./data/runs/validation_20261003T193310Z_56c49087
+        target: /imports
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mlflow:
+        condition: service_healthy

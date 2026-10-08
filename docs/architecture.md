@@ -2,7 +2,7 @@
 
 Project: car_accident  
 Status: NON_FINAL  
-Document date: 2026-10-07  
+Document date: 2026-10-08  
 Implementation evidence: local build and functional validation on 2026-10-03
 
 ## Scope and evidence
@@ -54,7 +54,8 @@ flowchart TD
 The evidenced environment uses Windows, WSL2 and Linux containers.
 The base `compose.yaml` defines `workspace`. Pipeline commands run in temporary
 containers created from that service. The API and application overlays add
-separate persistent services, described in sections 3 and 4.
+separate persistent services, described in sections 3 and 4. The tracking
+overlay adds the isolated service described in section 5.
 
 ```mermaid
 flowchart TD
@@ -172,11 +173,34 @@ The app's readiness endpoint checks API readiness. This does not constitute
 quality approval or continuous monitoring. Raw-input conversion and suitability
 for decisions before intervention remain open.
 
-## 5. Target architecture and remaining work
+## 5. Local historical reference tracking
+
+Implementation addition: 2026-10-08. Establish Docker/Windows validation from
+successful installation output; source presence alone does not establish it.
+
+`compose.tracking.yaml` adds `mlflow` and a temporary `tracking-import` tool.
+The isolated tracking image pins MLflow 3.17.0. Windows publishes only
+`127.0.0.1:5000`. The server persists SQLite metadata and artifact copies in
+`data/tracking/`; the tool reads the selected October 3 reference directory
+through a read-only mount and transfers files through the artifact proxy.
+
+The first run imports the unchanged validation report, run status and selected
+model bytes. It retains original timestamps, observed metrics, class-code
+mapping and `approved_for_delivery=false`. The original training Git revision
+and image identity remain unknown. Import Git baseline, dirty worktree state,
+image identity, importer hash and time are recorded separately.
+
+A sequential repeat verifies the same finished run and its artifact hashes.
+This does not instrument subsequent pipeline runs, register a model version,
+change the API model, enforce acceptance thresholds or retrain. Detailed storage,
+provenance, commands and test scope are in [tracking.md](tracking.md).
+
+## 6. Target architecture and remaining work
 
 This diagram describes the target integration. The local API and prepared-feature
 application have separate implementations. A dedicated pipeline service,
-automated accepted-model delivery, tracking and full monitoring remain planned.
+automated accepted-model delivery, future pipeline tracking and full monitoring
+remain planned. Local historical reference tracking is now implemented separately.
 Logical layers do not imply one microservice for every pipeline stage.
 
 ```mermaid
@@ -199,7 +223,7 @@ flowchart TD
         DATASETS["Versioned supplied datasets"]
         CANDIDATE["Candidate model and run artifacts"]
         ACCEPTED["Accepted model version"]
-        TRACKING["Run tracking and version metadata"]
+        TRACKING["MLflow: reference import; future pipeline tracking"]
     end
 
     MONITOR["Operational and model monitoring"]
@@ -226,22 +250,22 @@ flowchart TD
 | `pipeline` | Proposed finite job for preprocessing and training; independent of prediction requests |
 | `api` | Implemented local prepared-feature service with an explicit model hash |
 | `app` | Separate local prepared-feature form and gateway to the API |
-| Tracking and storage | Record artifact identities, versions and run metadata |
+| `mlflow` and storage | Local reference metadata and byte-identical artifact copies; future pipeline integration remains planned |
 | Monitoring | Track failures, service health and agreed data/model indicators |
 
-The local API and prepared-feature application are now included. Add tracking,
-data/model versioning, configured triggers and controlled delivery in subsequent
-work. A complete raw-input application remains a separate task.
+The local API, prepared-feature application and historical reference tracking
+are now included. Add data/model versioning, future pipeline tracking, configured
+triggers and controlled delivery in subsequent work. A complete raw-input
+application remains a separate task.
 
-DVC and MLflow are recommended candidates for data versioning and
-run/model management respectively. Their deployment and configuration
-are not implemented or fixed by this document.
+MLflow is selected for this local tracking step. DVC remains a candidate for
+a separate data/model versioning step; it is not installed or configured here.
 
 The prepared-feature contract is specified in `docs/api-contract.md`. Mapping
 raw application inputs to the model's 28 ordered features remains separate;
 the supplied example does not establish a complete raw-input serving pipeline.
 
-## 6. Limitations and open decisions
+## 7. Limitations and open decisions
 
 - The inherited successive target recodings map original codes
   `[1, 2, 3, 4]` to `[1, 1, 1, 0]`. Domain labels remain unconfirmed.
