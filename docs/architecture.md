@@ -2,7 +2,7 @@
 
 Project: car_accident  
 Status: NON_FINAL  
-Document date: 2026-10-05  
+Document date: 2026-10-07  
 Implementation evidence: local build and functional validation on 2026-10-03
 
 ## Scope and evidence
@@ -52,8 +52,9 @@ flowchart TD
 ## 2. Implemented runtime boundaries
 
 The evidenced environment uses Windows, WSL2 and Linux containers.
-Compose defines one service, `workspace`. Commands run in temporary
-containers created from that service.
+The base `compose.yaml` defines `workspace`. Pipeline commands run in temporary
+containers created from that service. The API and application overlays add
+separate persistent services, described in sections 3 and 4.
 
 ```mermaid
 flowchart TD
@@ -122,7 +123,8 @@ from the installation output, not from the presence of these files.
 `compose.api.yaml` adds `api` while keeping `workspace` unchanged. Its image
 extends the existing local runtime image. The selected model file is mounted
 read-only, and Windows exposes only `127.0.0.1:8000`. The service consumes
-prepared features; application input conversion and the UI remain pending.
+prepared features. Raw-input conversion remains separate; the prepared-feature
+application is described in section 4.
 
 ```mermaid
 flowchart TD
@@ -141,17 +143,46 @@ health endpoints, commands and limitations are in [api-contract.md](api-contract
 The following target diagram includes this local API; automated delivery and
 its acceptance gate are still planned.
 
-## 4. Target architecture and remaining work
+## 4. Local prepared-feature application
 
-This diagram describes the target integration. The local prepared-feature API
-is implemented separately; the application, dedicated pipeline service,
+Implementation addition: 2026-10-07. Establish Windows runtime validation
+from the installation output; these files alone do not establish a running app.
+
+`compose.app.yaml` adds `app` and leaves the existing API and workspace files
+unchanged. The app image extends the validated local API image and adds no
+runtime dependencies. Windows exposes only `127.0.0.1:8080`. The app has no
+model, data or repository bind mounts and forwards requests to `api:8000`.
+
+```mermaid
+flowchart TD
+    BROWSER["Local browser: 28 prepared numeric features"] --> APP["app: form and fixed API gateway"]
+    APP --> API["api: contract checks and prediction"]
+    API --> RESPONSE["Class code, model hash and contract version"]
+    RESPONSE --> APP
+    APP --> BROWSER
+```
+
+The form can load the preserved reference example. Blank fields are required;
+no values or category labels are inferred. Input edits clear the old result,
+and the gateway preserves JSON bytes for the API's validation. The interface
+displays class codes without unconfirmed severity labels. See
+[local-app.md](local-app.md) for use, endpoints, commands and verification scope.
+
+The app's readiness endpoint checks API readiness. This does not constitute
+quality approval or continuous monitoring. Raw-input conversion and suitability
+for decisions before intervention remain open.
+
+## 5. Target architecture and remaining work
+
+This diagram describes the target integration. The local API and prepared-feature
+application have separate implementations. A dedicated pipeline service,
 automated accepted-model delivery, tracking and full monitoring remain planned.
 Logical layers do not imply one microservice for every pipeline stage.
 
 ```mermaid
 flowchart TD
     subgraph PRESENTATION["Presentation layer"]
-        APP["app: user interface"]
+        APP["app: prepared-feature interface"]
     end
 
     subgraph SERVING["Prediction layer"]
@@ -194,13 +225,13 @@ flowchart TD
 | `workspace` | Current development and test environment; may remain optional after responsibilities are covered |
 | `pipeline` | Proposed finite job for preprocessing and training; independent of prediction requests |
 | `api` | Implemented local prepared-feature service with an explicit model hash |
-| `app` | Proposed separate interface that calls the API |
+| `app` | Separate local prepared-feature form and gateway to the API |
 | Tracking and storage | Record artifact identities, versions and run metadata |
 | Monitoring | Track failures, service health and agreed data/model indicators |
 
-The local prepared-feature API is now included. The application remains the
-next delivery component. Add tracking, data/model versioning, configured
-triggers and controlled delivery in subsequent work.
+The local API and prepared-feature application are now included. Add tracking,
+data/model versioning, configured triggers and controlled delivery in subsequent
+work. A complete raw-input application remains a separate task.
 
 DVC and MLflow are recommended candidates for data versioning and
 run/model management respectively. Their deployment and configuration
@@ -210,7 +241,7 @@ The prepared-feature contract is specified in `docs/api-contract.md`. Mapping
 raw application inputs to the model's 28 ordered features remains separate;
 the supplied example does not establish a complete raw-input serving pipeline.
 
-## 5. Limitations and open decisions
+## 6. Limitations and open decisions
 
 - The inherited successive target recodings map original codes
   `[1, 2, 3, 4]` to `[1, 1, 1, 0]`. Domain labels remain unconfirmed.
@@ -218,9 +249,9 @@ the supplied example does not establish a complete raw-input serving pipeline.
   This limits claims about prediction before intervention.
 - The measured model metrics are reference observations, not agreed
   quality thresholds. Agree thresholds before enforcing model acceptance.
-- No configured recurring trigger, implemented application, model registry
-  or complete monitoring workflow is evidenced. The API adds local liveness
-  and readiness endpoints only; they do not establish model quality approval.
+- No configured recurring trigger, raw-input application, model registry
+  or complete monitoring workflow is evidenced. The API and prepared-feature
+  app expose local liveness and readiness; these do not establish quality approval.
 - Labelled predictive performance and unlabelled drift indicators must
   remain distinct.
 - Direct runtime dependencies are pinned; full dependency and base-image

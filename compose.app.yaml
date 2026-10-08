@@ -1,0 +1,28 @@
+# Local prepared-feature demonstration; raw-input conversion remains separate.
+services:
+  app:
+    image: car-accident-app:local
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM car-accident-api:local
+        COPY src/app/ /app/src/app/
+        COPY src/models/test_features.json /app/src/app/example_features.json
+    working_dir: /app
+    command: ["python", "-m", "uvicorn", "src.app.service:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log"]
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5).close()"]
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 5s
