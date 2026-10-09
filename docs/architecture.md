@@ -2,7 +2,7 @@
 
 Project: car_accident  
 Status: NON_FINAL  
-Document date: 2026-10-08  
+Document date: 2026-10-09
 Implementation evidence: local build and functional validation on 2026-10-03
 
 ## Scope and evidence
@@ -55,7 +55,8 @@ The evidenced environment uses Windows, WSL2 and Linux containers.
 The base `compose.yaml` defines `workspace`. Pipeline commands run in temporary
 containers created from that service. The API and application overlays add
 separate persistent services, described in sections 3 and 4. The tracking
-overlay adds the isolated service described in section 5.
+overlay adds the isolated service described in section 5. A separate finite
+versioning tool is described in section 6.
 
 ```mermaid
 flowchart TD
@@ -195,7 +196,39 @@ This does not instrument subsequent pipeline runs, register a model version,
 change the API model, enforce acceptance thresholds or retrain. Detailed storage,
 provenance, commands and test scope are in [tracking.md](tracking.md).
 
-## 6. Target architecture and remaining work
+## 6. Local reference artifact versioning
+
+Implementation addition: 2026-10-08. Establish Windows/Docker validation from
+successful installation output. Source presence does not establish recovery.
+
+The separate `compose.versioning.yaml` defines a finite DVC 3.67.1 tool; it
+has no published port or runtime network. It does not extend training, serving
+or tracking images. Its source-data mounts are read-only. Five metadata files
+under `versioning/` refer to the four supplied raw CSVs, original prepared data,
+separate preserved model, validated reference run and validation report.
+
+DVC stores content in its ignored cache and a separate local filesystem store.
+The tool sets `DVC_SITE_CACHE_DIR=/tmp/dvc-site-cache` for temporary internal
+state on the writable `/tmp` mount. This is separate from the persistent content
+cache and object store. The October 9 diagnosis observed the default internal
+path `/var/tmp/dvc` on a read-only filesystem during an incomplete initialisation.
+The guarded repair preserves that partial state and requires successful local
+output before recovery is considered validated.
+
+Git versions small metadata files and the SHA-256 registration manifest. An
+isolated recovery begins with an empty cache and checks all 16 recovered files
+against the original SHA-256 observations. Original file hashes are checked again.
+
+Registration baseline HEAD and versioning image identity describe this new step;
+they do not identify the original training revision or training image. Historical
+`approved_for_delivery=false` is preserved. The original model and selected
+serving model retain separate identities. See [versioning.md](versioning.md).
+
+The MLflow database, snapshots, backups and assets are outside this registration.
+Future automatic versioning of new training runs, external CI access and
+protection against local drive loss remain separate work.
+
+## 7. Target architecture and remaining work
 
 This diagram describes the target integration. The local API and prepared-feature
 application have separate implementations. A dedicated pipeline service,
@@ -220,7 +253,7 @@ flowchart TD
     end
 
     subgraph STORAGE["Data and artifact layer"]
-        DATASETS["Versioned supplied datasets"]
+        DATASETS["DVC reference data; future run versions"]
         CANDIDATE["Candidate model and run artifacts"]
         ACCEPTED["Accepted model version"]
         TRACKING["MLflow: reference import; future pipeline tracking"]
@@ -253,19 +286,19 @@ flowchart TD
 | `mlflow` and storage | Local reference metadata and byte-identical artifact copies; future pipeline integration remains planned |
 | Monitoring | Track failures, service health and agreed data/model indicators |
 
-The local API, prepared-feature application and historical reference tracking
-are now included. Add data/model versioning, future pipeline tracking, configured
-triggers and controlled delivery in subsequent work. A complete raw-input
-application remains a separate task.
+The local API, prepared-feature application, historical reference tracking
+and reference artifact versioning have separate implementations. Future pipeline
+tracking, automatic run versioning, configured triggers and controlled delivery
+remain subsequent work. A complete raw-input application remains separate.
 
-MLflow is selected for this local tracking step. DVC remains a candidate for
-a separate data/model versioning step; it is not installed or configured here.
+MLflow is selected for local tracking. DVC is selected for local reference
+artifact versioning; neither step alone completes the automated Level 1 workflow.
 
 The prepared-feature contract is specified in `docs/api-contract.md`. Mapping
 raw application inputs to the model's 28 ordered features remains separate;
 the supplied example does not establish a complete raw-input serving pipeline.
 
-## 7. Limitations and open decisions
+## 8. Limitations and open decisions
 
 - The inherited successive target recodings map original codes
   `[1, 2, 3, 4]` to `[1, 1, 1, 0]`. Domain labels remain unconfirmed.

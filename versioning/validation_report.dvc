@@ -1,0 +1,6 @@
+wdir: ..
+outs:
+- path: data/runs/validation_20261003T193310Z_56c49087/validation_report.json
+  md5: 8c38679aac8511371bf58e12cd8d3309
+  size: 1753
+  hash: md5

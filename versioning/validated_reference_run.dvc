@@ -1,0 +1,7 @@
+wdir: ..
+outs:
+- path: data/runs/validation_20261003T193310Z_56c49087/reference_run
+  md5: d6df016c0ee632953dfba9de7933c3b0.dir
+  size: 113069151
+  nfiles: 6
+  hash: md5
