@@ -2,7 +2,8 @@
 
 Project: car_accident  
 Status: NON_FINAL  
-Document date: 2026-10-10
+Document date: 2026-10-11
+Architecture source review: 2026-10-11; implementation and configured boundaries, not a new runtime validation
 Implementation evidence: local build and functional validation on 2026-10-03
 
 ## Scope and evidence
@@ -28,23 +29,34 @@ link between Git revision, container image identity and model delivery.
 
 ```mermaid
 flowchart TD
-    RAW["Four supplied raw CSV files"] --> PRE["Reference transformations and row selection"]
-    PRE --> SPLIT["Train/test split: 70/30"]
+    RAW["Four supplied 2021 raw CSV files"] --> PRE["Reference transformations and row selection"]
+    PRE --> SPLIT["Train/test split: 70/30; seed 42"]
     SPLIT --> TRAIN["Training data: derive and apply fill values"]
     SPLIT --> TEST["Test data: apply training fill values"]
     TRAIN -->|"Derived fill values only"| TEST
     TRAIN --> DATA_CHECK["Technical checks of both prepared partitions"]
     TEST --> DATA_CHECK
     DATA_CHECK --> FIT["Random Forest training"]
-    FIT --> MODEL["Saved model in a new run directory"]
-    MODEL --> MODEL_CHECK["Technical model contract checks"]
-    MODEL_CHECK --> REPORT["New technical validation report"]
-    REPORT -->|"Existing mode"| DONE["Run completed; delivery approval false"]
-    REPORT -->|"Explicit tracked mode"| RECORD["Record identities and verify artifact copies"]
-    RECORD -->|"Confirmed MLflow FINISHED"| DONE
+    FIT --> MODEL["Saved model in a new run directory; estimator has no seed"]
+    MODEL --> MODEL_CHECK["Technical model contract checks; no inference"]
+    MODEL_CHECK --> REPORT["Write technical report; no evaluation metrics"]
+    REPORT -->|"Untracked mode"| STATUS["Write final local run status"]
+    REPORT -->|"Explicit tracked mode"| IDENTITIES["One authoritative artifact identity set; report/model linkage"]
+    IDENTITIES --> RECORD["Upload copies; verify stored hashes and unchanged local inputs/artifacts"]
+    RECORD --> REMOTE["Confirm MLflow FINISHED, tags and parameters"]
+    REMOTE --> STATUS
+    STATUS --> DONE["Local completed; approved_for_delivery=false"]
     MODEL -.-> EVAL["Evaluation in the separate functional test"]
     TEST -.-> EVAL
+    classDef separate fill:#fff4d6,stroke:#946200,stroke-dasharray:5 5
+    class EVAL separate
 ```
+
+This diagram shows implemented code paths. Any technical, tracking, artifact or
+final-status writing failure prevents successful completion and returns exit 1.
+Failure handling preserves the primary error and partial artifacts, attempts to
+record failure, and retains unknown remote outcomes without automatic retry.
+The separate evaluation procedure does not determine technical pipeline status.
 
 - Merging, feature calculations, fixed recoding and selected row filtering
   happen before the split.
@@ -109,6 +121,28 @@ flowchart TD
     CHECK -->|"Write validation evidence"| DATA
 ```
 
+The base workspace diagram above is separate from the overlay boundaries below.
+Historical import and finite DVC tooling have their own diagrams in sections 5
+and 6; they do not automatically run alongside the pipeline.
+
+```mermaid
+flowchart TD
+    LAUNCH["Manual PowerShell launcher"] -->|"Write context; pin image ID"| CONTEXT["data/run_invocations"]
+    CONTEXT -->|"Read-only context"| NEW["Temporary pipeline-run; no dependency startup"]
+    SOURCES["Raw/reference data and model sources"] -->|"Read-only mounts"| NEW
+    NEW -->|"Writable new-run storage"| RUNS["data/runs: outputs, checks and status"]
+    NEW -->|"Explicit tracking over HTTP"| MLFLOW["Existing MLflow 3.17.0 service"]
+    MLFLOW <-->|"Writable /tracking"| STORE["data/tracking: SQLite and artifacts"]
+    BROWSER["Local browser"] --> APP["app: 127.0.0.1:8080"]
+    APP -->|"api:8000"| API["api: 127.0.0.1:8000"]
+    SELECTED["Selected reference model and expected SHA-256"] -->|"Read-only file mount"| API
+```
+
+These are configured runtime boundaries, not a current service inventory.
+Published endpoints bind only to Windows loopback: app `8080`, API `8000`, and
+MLflow `5000`. The base workspace retains its two writable mounts. The pipeline
+launcher requires the existing tracking service and starts no dependencies.
+
 The image contains `src/run_pipeline.py` and `src/data` source files.
 Changes to these files require rebuilding the image.
 
@@ -166,12 +200,13 @@ application is described in section 4.
 
 ```mermaid
 flowchart TD
-    ART["Selected model file"] --> HASH["Verify SHA-256 and model contract"]
-    HASH -->|"Valid"| READY["Ready prediction API"]
-    HASH -->|"Invalid"| CLOSED["Readiness and predictions: 503"]
-    CLIENT["Local client: prepared features"] --> INPUT["Validate and order 28 features"]
-    INPUT --> READY
-    READY --> OUT["Class code, model hash and contract version"]
+    ART["Configured reference model; read-only mount"] --> HASH["At startup: verify expected SHA-256 and model contract"]
+    HASH -->|"Valid"| READY["Ready API; one selected model loaded"]
+    HASH -->|"Invalid"| CLOSED["Readiness and predictions: HTTP 503"]
+    CLIENT["Local client: 28 prepared numeric features"] --> INPUT["Validate exact feature contract and order"]
+    INPUT -->|"Valid request and ready model"| PREDICT["Prediction with selected model"]
+    READY --> PREDICT
+    PREDICT --> OUT["Class code 0/1, model SHA-256, prepared-features-v1"]
 ```
 
 The service loads the selected artifact once and checks its ordered feature
@@ -193,8 +228,9 @@ model, data or repository bind mounts and forwards requests to `api:8000`.
 
 ```mermaid
 flowchart TD
-    BROWSER["Local browser: 28 prepared numeric features"] --> APP["app: form and fixed API gateway"]
-    APP --> API["api: contract checks and prediction"]
+    BROWSER["Local browser: 28 prepared numeric features"] --> APP["app: form and fixed API gateway; loopback port 8080"]
+    EXAMPLE["Packaged reference feature example"] --> APP
+    APP -->|"Forward prepared JSON; api:8000"| API["api: contract checks and prediction; loopback port 8000"]
     API --> RESPONSE["Class code, model hash and contract version"]
     RESPONSE --> APP
     APP --> BROWSER
@@ -244,6 +280,21 @@ The opaque HTTP case requires an already running server; its current execution
 evidence and limitations are documented in [tracking.md](tracking.md).
 Neither case establishes a real-data training result or model quality.
 
+```mermaid
+flowchart LR
+    HIST["Selected historical reference run; read-only"] --> IMPORT["Historical importer"]
+    IMPORT --> REF["MLflow reference experiment: copied historical evidence"]
+    INVOCATION["Explicit new pipeline run and invocation context"] --> TRACKER["PipelineTracker and local HTTP client"]
+    TRACKER --> NEW["Separate new-run experiment: provenance and verified copies"]
+    REF --> STORE["Local MLflow 3.17.0: SQLite and artifact storage"]
+    NEW --> STORE
+    UNKNOWN["Original historical training Git/image identities: unknown"] -.-> REF
+```
+
+Import observations do not replace unknown original training identities. Neither
+tracking path changes the selected serving model or automatically registers or
+approves a model version.
+
 ## 6. Local reference artifact versioning
 
 Implementation addition: 2026-10-08. Establish Windows/Docker validation from
@@ -276,51 +327,68 @@ The MLflow database, snapshots, backups and assets are outside this registration
 Future automatic versioning of new training runs, external CI access and
 protection against local drive loss remain separate work.
 
+```mermaid
+flowchart LR
+    SOURCE["Preserved raw/prepared data, reference model and validated reference run"] --> TOOL["Finite DVC 3.67.1 registration tool; sources read-only; no network"]
+    TOOL --> META["Git-tracked DVC metadata and SHA-256 registration manifest"]
+    TOOL --> OBJECTS["Ignored cache and separate local filesystem object store"]
+    OBJECTS --> RECOVER["Isolated reference recovery and hash comparison"]
+    NEW["New pipeline outputs"] -.-> FUTURE["Automatic run versioning: planned"]
+    classDef planned fill:#fff4d6,stroke:#946200,stroke-dasharray:5 5
+    class FUTURE planned
+```
+
+This diagram describes the reference-versioning mechanism. It does not establish
+a new recovery result, external storage, or versioning of subsequent run outputs.
+
 ## 7. Target architecture and remaining work
 
-This diagram describes the target integration. The local API and prepared-feature
-application have separate implementations. Configured pipeline triggering,
-automated accepted-model delivery and full monitoring
-remain planned. Local historical reference tracking is now implemented separately.
-Logical layers do not imply one microservice for every pipeline stage.
+This diagram distinguishes current implementations from planned integration.
+Solid boxes are implemented components or current manual mechanisms; amber
+dashed boxes and dashed links denote planned work. This source-based distinction
+does not prove current service readiness. Logical layers do not imply one
+microservice for every pipeline stage.
 
 ```mermaid
 flowchart TD
-    subgraph PRESENTATION["Presentation layer"]
-        APP["app: prepared-feature interface"]
+    subgraph CURRENT["Implemented local components and manual mechanisms"]
+        APP["app: prepared-feature form and gateway"]
+        API["api: contract checks and prediction"]
+        SELECTED["Manually selected reference model; fixed SHA-256"]
+        MANUAL["Manual invocation; optional guarded tracking launcher"]
+        PIPELINE["Finite preprocessing/training; technical checks and report"]
+        CANDIDATE["New run artifacts and local status; delivery approval false"]
+        DATASETS["DVC-versioned preserved reference data/artifacts"]
+        TRACKING["MLflow: historical imports and explicit new-run tracking"]
+        HEALTH["Local app/API liveness and readiness endpoints"]
     end
-
-    subgraph SERVING["Prediction layer"]
-        API["api: implemented locally"]
+    subgraph PLANNED["Planned integration; no delivery approval"]
+        TRIGGER["Configured recurring trigger"]
+        VERSIONS["Automatic versioning of new runs"]
+        GATE["Agreed model-quality acceptance gate"]
+        ACCEPTED["Accepted-model delivery and serving selection"]
+        MONITOR["Operational/model monitoring workflow"]
+        RAW_INPUT["Raw-input conversion for the application"]
     end
-
-    subgraph JOBS["Training layer"]
-        TRIGGER["Configured trigger"]
-        PIPELINE["pipeline: finite preprocessing and training job"]
-        GATE["Data and model validation gate"]
-    end
-
-    subgraph STORAGE["Data and artifact layer"]
-        DATASETS["DVC reference data; future run versions"]
-        CANDIDATE["Candidate model and run artifacts"]
-        ACCEPTED["Accepted model version"]
-        TRACKING["MLflow: reference import and explicit new-run tracking"]
-    end
-
-    MONITOR["Operational and model monitoring"]
-
-    APP -->|"Prediction request"| API
-    API -->|"Prediction response"| APP
-    ACCEPTED -->|"Load a selected version"| API
-    TRIGGER --> PIPELINE
-    DATASETS --> PIPELINE
+    APP -->|"Prepared request"| API
+    API -->|"Class, model hash and contract"| APP
+    SELECTED -->|"Read-only model; load once"| API
+    MANUAL --> PIPELINE
+    DATASETS -->|"Preserved input identities"| PIPELINE
     PIPELINE --> CANDIDATE
-    CANDIDATE --> GATE
-    GATE -->|"Only if agreed checks pass"| ACCEPTED
-    PIPELINE --> TRACKING
-    GATE --> TRACKING
-    PIPELINE -->|"Run state and failures"| MONITOR
-    API -->|"Health and prediction indicators"| MONITOR
+    PIPELINE -->|"Explicit optional tracking; verified copies"| TRACKING
+    APP --> HEALTH
+    API --> HEALTH
+    TRIGGER -.-> PIPELINE
+    CANDIDATE -.-> VERSIONS
+    CANDIDATE -.-> GATE
+    GATE -.-> ACCEPTED
+    ACCEPTED -.-> API
+    CANDIDATE -.-> MONITOR
+    HEALTH -.-> MONITOR
+    RAW_INPUT -.-> APP
+    classDef planned fill:#fff4d6,stroke:#946200,stroke-dasharray:5 5
+    class TRIGGER,VERSIONS,GATE,ACCEPTED,MONITOR,RAW_INPUT planned
 ```
 
 ### Service responsibilities and transition
