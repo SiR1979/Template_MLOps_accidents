@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!requirements-runtime.txt
+!src/
+!src/**
+**/__pycache__/
+**/*.pyc
+**/*.joblib
+**/.env
+**/.env.*
+**/secrets.toml

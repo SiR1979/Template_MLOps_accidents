@@ -1,0 +1,90 @@
+{
+  "scope": "historical_reference_registration",
+  "registered_at_utc": "2026-10-09T06:44:03.189687+00:00",
+  "registration_baseline_git_head": "08208d734188eb59303ee25d4910e670e4cb5674",
+  "registration_worktree_state": "dirty",
+  "versioning_image_id": "sha256:02d4a4e4c447f07446899843b89bb459edf6e79f561ccb8008974fccd1abbfb9",
+  "dvc_version": "3.67.1",
+  "registration_tool_sha256": "10377ad3b3b5adf5b493adafea2c5c3ff51b0f602bed79b1f7804d1d66af6e71",
+  "registration_mode": "resume_partial_initialisation",
+  "site_cache_base": "/tmp/dvc-site-cache",
+  "source_file_sha256": {
+    "data/raw/caracteristiques-2021.csv": {
+      "sha256": "ee2d552b426d2d29cc8cb495ec920c0228e322fde228be7827730b8b681e226d",
+      "size_bytes": 7055448
+    },
+    "data/raw/lieux-2021.csv": {
+      "sha256": "95412261cadbe5f07c2dbf31fd30ca4e0bf197570799421f59078f77f80784fd",
+      "size_bytes": 5773984
+    },
+    "data/raw/usagers-2021.csv": {
+      "sha256": "3bf27607147cae1f0215bbcae985891e19ec792572f521a91a3fcb96ef4e202c",
+      "size_bytes": 11856536
+    },
+    "data/raw/vehicules-2021.csv": {
+      "sha256": "5aad4097a38803a32eb1f2db642f50fa0aa4e2e23156096844eccbd0b4629d84",
+      "size_bytes": 6396946
+    },
+    "data/preprocessed/X_train.csv": {
+      "sha256": "0b72b80996518f9b65762b4fe464f5b5c2a505ab0fb0c0db593909c98c8e3ba0",
+      "size_bytes": 4041378
+    },
+    "data/preprocessed/X_test.csv": {
+      "sha256": "e97ba95459f16c757195b75dc135afa66288cf3264a738b5beae7da106a06836",
+      "size_bytes": 1731521
+    },
+    "data/preprocessed/y_train.csv": {
+      "sha256": "8a8835dc1d14eceaac6b2f1475160bb68fb50bee4ff22ac79da82b11d9be2216",
+      "size_bytes": 76583
+    },
+    "data/preprocessed/y_test.csv": {
+      "sha256": "dcc5d3796b479a1ed3bea42f3ecc581b2d0806c32704d86e1f121d22df6a0853",
+      "size_bytes": 32825
+    },
+    "src/models/trained_model.joblib": {
+      "sha256": "de77313b3965fa3a5a97fe5b38804a3b3f399c588e08e3ba63ade90fcc42b58b",
+      "size_bytes": 107112809
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/preprocessed/X_train.csv": {
+      "sha256": "0b72b80996518f9b65762b4fe464f5b5c2a505ab0fb0c0db593909c98c8e3ba0",
+      "size_bytes": 4041378
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/preprocessed/X_test.csv": {
+      "sha256": "e97ba95459f16c757195b75dc135afa66288cf3264a738b5beae7da106a06836",
+      "size_bytes": 1731521
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/preprocessed/y_train.csv": {
+      "sha256": "8a8835dc1d14eceaac6b2f1475160bb68fb50bee4ff22ac79da82b11d9be2216",
+      "size_bytes": 76583
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/preprocessed/y_test.csv": {
+      "sha256": "dcc5d3796b479a1ed3bea42f3ecc581b2d0806c32704d86e1f121d22df6a0853",
+      "size_bytes": 32825
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/model/trained_model.joblib": {
+      "sha256": "5e8775b69782640c0ee244bfa7c427928ece0f01be877688102313a8bc7a1a2b",
+      "size_bytes": 107186409
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/reference_run/run_status.json": {
+      "sha256": "bfd69f4edf47b66ac5b8b15196f1d545182d70b10e8d92988dcc77b09438040e",
+      "size_bytes": 435
+    },
+    "data/runs/validation_20261003T193310Z_56c49087/validation_report.json": {
+      "sha256": "d1d3200d428701c96f715f99fcd4912c92bb4e528023f7fe7ff5475aedfdcf79",
+      "size_bytes": 1753
+    }
+  },
+  "metadata_file_sha256": {
+    "versioning/raw_2021.dvc": "8a024976f9be2c0115d3ca329306e06ef8b93234a61313f6f064c3f296b33441",
+    "versioning/reference_preprocessed.dvc": "6f3149841a4545085ac4f186f3ca4a794cf3934ddcf393fe5eaa58e8aca987cf",
+    "versioning/preserved_reference_model.dvc": "c316dc6b4c12bbb8a8ba1e77e034f84a83bc4eeb6014fcb501749f475b8ba0c6",
+    "versioning/validated_reference_run.dvc": "4a45a73d33d7388204f2f51b458961b9c0df3f6b0f47616ccdfffc7dfd7de9fd",
+    "versioning/validation_report.dvc": "614b3a6f01f74a87eb1f816a15276abda2ea1a0d2799af875489b0254e5fe3ea"
+  },
+  "preserved_reference_model_role": "Separate preserved model; not the selected serving artifact.",
+  "preserved_reference_model_historical_hash": "Not independently supplied; current bytes captured here.",
+  "original_training_git_revision": "unknown",
+  "original_training_image_id": "unknown",
+  "approved_for_delivery": false,
+  "training_performed": false
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Road Accident | Local Prediction</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">RA</span> Road Accident <span class="badge">LOCAL DEMO</span></div>
+      <div class="connection"><span id="api-status" class="status" role="status">Checking API…</span><button id="check-api" class="button subtle" type="button">Check API</button></div>
+    </header>
+    <main>
+      <div class="intro">
+        <p class="eyebrow">SUPPLIED 2021 REFERENCE PIPELINE</p>
+        <h1>Prepared features. One prediction.</h1>
+        <p class="lead">Send one complete record to the local Random Forest API and inspect its class code.</p>
+      </div>
+      <div class="layout">
+        <section class="panel input-panel" aria-labelledby="input-title">
+          <div class="panel-heading"><div><h2 id="input-title">Model inputs</h2><p>28 required numeric features, in the model's documented order.</p></div><span id="field-count" class="count">0 / 28</span></div>
+          <div class="input-guidance"><p>Use values after the reference preprocessing, including its numeric category encodings. Missing values must already be resolved.</p><button id="load-example" class="button secondary" type="button">Load reference example</button></div>
+          <form id="feature-form" autocomplete="off">
+            <div id="feature-fields" class="feature-grid"></div>
+            <div class="form-footer"><p>All values must be finite. Only <code>lat</code> and <code>long</code> accept fractional values.</p><button id="predict" class="button primary" type="submit">Get prediction <span aria-hidden="true">→</span></button></div>
+          </form>
+          <p id="form-message" class="message" role="alert" hidden></p>
+        </section>
+        <aside class="result-column">
+          <section class="panel result-panel" aria-labelledby="result-title">
+            <p class="eyebrow">API RESPONSE</p><h2 id="result-title">Prediction code</h2>
+            <div id="empty-result"><p class="result-placeholder" aria-hidden="true">—</p><p class="muted">Complete the inputs or load the reference example, then request a prediction.</p></div>
+            <div id="prediction-result" hidden><p id="prediction-code" class="prediction-code"></p><p class="muted">Class code returned by the selected model.</p><dl><dt>Contract version</dt><dd id="contract-version"></dd><dt>Model SHA-256</dt><dd id="model-hash" class="hash"></dd></dl></div>
+          </section>
+          <section class="panel explanation" aria-labelledby="meaning-title"><h2 id="meaning-title">How to read the code</h2><p>The inherited target transformation maps original codes as follows:</p><table><thead><tr><th>Original code</th><th>Model target</th></tr></thead><tbody><tr><td>1, 2, 3</td><td>1</td></tr><tr><td>4</td><td>0</td></tr></tbody></table><p>Domain labels for 0 and 1 remain unconfirmed.</p></section>
+          <section class="scope-note" aria-labelledby="scope-title"><h2 id="scope-title">Demonstration scope</h2><p>This form accepts prepared features. Raw accident records require a separately defined conversion.</p><p>Reference row selection uses observed severity. The demo does not establish suitability for decisions before intervention.</p></section>
+        </aside>
+      </div>
+    </main>
+    <footer>Local browser → application → existing prediction API. No records are saved by the application.</footer>
+  </div>
+</body>
+</html>

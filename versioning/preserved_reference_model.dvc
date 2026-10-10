@@ -1,0 +1,6 @@
+wdir: ..
+outs:
+- path: src/models/trained_model.joblib
+  md5: 08e4179bfceb4c5a153bba374d023345
+  size: 107112809
+  hash: md5

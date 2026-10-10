@@ -1,0 +1,37 @@
+# Local demonstration only; the historical delivery approval remains unchanged.
+services:
+  api:
+    image: car-accident-api:local
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM car-accident-runtime:local
+        COPY src/api/requirements.txt /opt/api-requirements.txt
+        RUN python -m pip install --no-cache-dir -r /opt/api-requirements.txt && python -m pip check
+        COPY src/api/ /app/src/api/
+    working_dir: /app
+    command: ["python", "-m", "uvicorn", "src.api.service:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]
+    environment:
+      MODEL_PATH: /app/model/trained_model.joblib
+      MODEL_SHA256: 5e8775b69782640c0ee244bfa7c427928ece0f01be877688102313a8bc7a1a2b
+      PYTHONDONTWRITEBYTECODE: "1"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - type: bind
+        source: ./data/runs/validation_20261003T193310Z_56c49087/reference_run/model/trained_model.joblib
+        target: /app/model/trained_model.joblib
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).close()"]
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 10s

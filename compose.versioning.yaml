@@ -1,0 +1,41 @@
+services:
+  versioning:
+    image: car-accident-versioning:resume-20261009
+    build:
+      context: ./src/versioning
+      dockerfile: Dockerfile
+    working_dir: /repo
+    environment:
+      DVC_SITE_CACHE_DIR: /tmp/dvc-site-cache
+    volumes:
+      - type: bind
+        source: .
+        target: /repo
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /repo/data
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./src/models/trained_model.joblib
+        target: /repo/src/models/trained_model.joblib
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: C:/Users/simon/MLOps_car_accident_dvc_store
+        target: /store
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    network_mode: none
