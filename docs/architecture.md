@@ -2,7 +2,7 @@
 
 Project: car_accident  
 Status: NON_FINAL  
-Document date: 2026-10-09
+Document date: 2026-10-10
 Implementation evidence: local build and functional validation on 2026-10-03
 
 ## Scope and evidence
@@ -33,10 +33,15 @@ flowchart TD
     SPLIT --> TRAIN["Training data: derive and apply fill values"]
     SPLIT --> TEST["Test data: apply training fill values"]
     TRAIN -->|"Derived fill values only"| TEST
-    TRAIN --> FIT["Random Forest training"]
+    TRAIN --> DATA_CHECK["Technical checks of both prepared partitions"]
+    TEST --> DATA_CHECK
+    DATA_CHECK --> FIT["Random Forest training"]
     FIT --> MODEL["Saved model in a new run directory"]
-    MODEL --> EVAL["Evaluation in the separate functional test"]
-    TEST --> EVAL
+    MODEL --> MODEL_CHECK["Technical model contract checks"]
+    MODEL_CHECK --> REPORT["New technical validation report"]
+    REPORT --> DONE["Run completed; delivery approval false"]
+    MODEL -.-> EVAL["Evaluation in the separate functional test"]
+    TEST -.-> EVAL
 ```
 
 - Merging, feature calculations, fixed recoding and selected row filtering
@@ -46,8 +51,22 @@ flowchart TD
   are filled using modes derived from the training data.
 - Training preserves `RandomForestClassifier(n_jobs=-1)`, without a seed.
   Repeated fits can produce different models and predictions.
+- Before training, both prepared feature/target pairs must be non-empty with
+  matching row counts, the existing 28 ordered features, finite numeric feature
+  values and target codes limited to 0 and 1.
+- After training, the newly produced artifact must be a Random Forest with the
+  established feature contract and model classes `[0, 1]`. These checks perform
+  no inference, scoring or holdout evaluation.
+- A new technical report records check results, run identity, model SHA-256 and
+  UTC verification timestamps. Report writing must succeed before the run is
+  marked `completed`; this does not establish model quality or delivery approval.
 - Evaluation currently belongs to the separate functional test.
   It is not an automatic pipeline acceptance or delivery gate.
+
+Technical pipeline validation addition: 2026-10-10. The October 3 functional
+report predates this addition and remains unchanged. Targeted test-double checks
+do not establish a new real-data training or evaluation result. The existing
+separate evaluation procedure is not invoked or imported by the pipeline.
 
 ## 2. Implemented runtime boundaries
 
@@ -106,6 +125,7 @@ themselves do not enforce read-only protection.
 | `data/runs/<run_id>/preprocessed/` | Four processed datasets for a new run |
 | `data/runs/<run_id>/model/trained_model.joblib` | Newly trained model |
 | `data/runs/<run_id>/run_status.json` | Run state and failure information |
+| `data/runs/<run_id>/validation_report.json` | Technical checks, run/model identities and UTC verification times; no evaluation metrics |
 | `data/preprocessed/` | Preserved reference datasets |
 | `src/models/trained_model.joblib` | Preserved reference model |
 | `data/reference_snapshots/20261003T182822Z_3490e1df/` | Preserved reference snapshot |
@@ -115,7 +135,10 @@ code on failure. Failures after run-directory creation are recorded in the
 run status when storage remains writable. Failures during initial input
 checks occur before a run directory is created.
 
-A completed training run has `approved_for_delivery=false`.
+A completed training run has `approved_for_delivery=false`. Completion requires
+the existing stages, technical data/model checks and technical report writing.
+Evaluation results do not determine that status. A technical failure uses the
+existing failed-status and nonzero-exit handling and preserves produced files.
 
 ## 3. Local prepared-feature API
 
