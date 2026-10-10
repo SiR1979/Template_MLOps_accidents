@@ -1,4 +1,4 @@
-# Local reference-run tracking
+# Local reference-run and new pipeline tracking
 
 Project: car_accident  
 Status: NON_FINAL  
@@ -147,13 +147,218 @@ Observed metrics do not establish operational suitability or quality acceptance.
 The inherited severity-based row selection limits claims about prediction before
 intervention. Domain labels for class codes 0 and 1 remain unconfirmed.
 
-This step does not instrument future training runs automatically or change the
-API's selected artifact. DVC data/model versioning, future pipeline tracking,
-orchestration, monitoring, controlled delivery and model-registry policy remain
-separate work. Level 1 remains incomplete; Level 2 is a separate extension.
+The historical importer does not instrument new training runs or change the
+API's selected artifact. The explicit new-run mode below is separate from that
+historical import. Automatic DVC output registration, orchestration, monitoring,
+controlled delivery and model-registry policy remain separate work.
+Level 1 remains incomplete; Level 2 is a separate extension.
+
+## Explicit new pipeline-run mode
+
+Implementation addition: 2026-10-10. Code presence alone does not prove a new
+real-data training run, a current server, or successful artifact recording.
+The original historical importer, experiment, report and model remain unchanged.
+
+`pipeline-run` is a finite Tools-profile service. It uses the existing training
+Dockerfile and a separate `car-accident-pipeline-tracking:local` image. The
+standard-library `LocalClient` transport is reused; the MLflow SDK is not added
+to training or serving dependencies. Historical metric/report validation is not
+called. No autologging, metrics, registry or serving promotion is performed.
+
+The normal pipeline CLI remains available. Tracking requires both
+`--tracking-uri` and `--tracking-context`; supplying only one is a CLI error.
+The tracked mode requires the reference raw directory and a new immediate child
+of `data/runs`. Existing run directories and invocation identities are rejected.
+
+### Launcher and runtime preparation
+
+Build only the new pipeline image when this source changes. This does not rebuild
+the installed MLflow, API or app images or start their services:
+
+```powershell
+docker compose --project-directory 'C:\Users\simon\MLOps_car_accident' `
+  -f 'C:\Users\simon\MLOps_car_accident\compose.yaml' `
+  -f 'C:\Users\simon\MLOps_car_accident\compose.tracking.yaml' build pipeline-run
+```
+
+The existing local MLflow 3.17.0 server must already be reachable. The launcher
+does not install dependencies, build images, start services, or retry a run:
+
+```powershell
+& 'C:\Users\simon\MLOps_car_accident\scripts\run_tracked_pipeline.ps1'
+```
+
+This command performs real inherited preprocessing and training. Use it only
+for an authorized new reference run, never as a transport or context probe.
+Run one launcher process at a time; experiment/identity checks are sequential,
+not a concurrent atomic transaction.
+
+The launcher records its observed Git baseline, worktree status, source hashes,
+configuration byte snapshots and actual resolved image ID. The temporary
+container uses that immutable image ID. A new invocation context is exclusively
+created under `data/run_invocations/<invocation_id>/`; it is preserved on failure.
+The context is read-only in the container. Git metadata, the Docker socket and
+the tracking database are not mounted. Only `data/runs` is writable; raw data,
+reference preprocessing, model sources and versioning metadata are read-only.
+
+Executed source hashes are compared with launcher observations before tracking
+writes and rechecked at recording. Raw-file hashes are captured before processing
+and checked again before completion. Python, installed package versions and
+`/opt/requirements-resolved.txt` describe the actual runtime. The image ID remains
+a launcher observation, not independent in-container attestation. A dirty
+baseline does not mean its commit contains the executed source bytes; code
+snapshots and their hashes identify those bytes separately.
+
+### Lifecycle, provenance and artifacts
+
+New runs use `car_accident_reference_pipeline`, with scope
+`new_reference_pipeline_run` and a unique invocation tag. After claiming a new
+local run directory, the tracker checks context and server version, creates a
+new `RUNNING` MLflow run, and records its ID locally. Phase tags/timestamps cover
+preprocessing, data validation, training, model validation, report writing and
+artifact recording. The inherited transformations, split seed 42, unseeded
+forest, target mapping and prepared-feature contract remain unchanged.
+
+After technical validation, new exclusive files under `tracking_evidence/`
+contain provenance and an artifact manifest. The unchanged technical report,
+opaque model bytes, four prepared CSVs, invocation context, runtime dependency
+evidence and small code/configuration snapshots are uploaded under `pipeline/`.
+Every upload is downloaded and checked for exact size and SHA-256. The manifest
+binds run/invocation/MLflow IDs and artifact hashes; it excludes its own entry.
+Its own SHA-256 is stored separately in MLflow tags. No local status file is
+uploaded as a prematurely completed terminal snapshot.
+
+The existing raw DVC pointer and registration manifest are read, never executed
+or changed. Pointer SHA-256, declared DVC version, object ID and manifest SHA-256
+are retained. The association is `matched` only when the pointer matches its
+manifest and all four actual raw-file identities match the registered entries.
+Otherwise it is `unmatched` or metadata is `unavailable`; neither means verified
+DVC association. This does not verify current recovery/store availability or
+version new prepared outputs/models. Registration identities never replace
+unknown original historical training identities.
+
+`completed` in tracked mode requires successful technical validation, all
+artifact round trips, confirmed MLflow `FINISHED` metadata and final local status
+writing. Evaluation remains separate and is never an acceptance gate.
+`approved_for_delivery=false` is retained in local and recorded evidence.
+
+### Failure and uncertainty
+
+A context, processing, tracking or artifact error causes local `failed` and exit
+1. Local outputs and partial remote artifacts are preserved. A known, identified
+new MLflow run is marked `FAILED` and checked best-effort. Error type, failed
+phase and secondary tracking errors are recorded without replacing the primary
+exception. No automatic replay, cleanup, resume or second create request occurs.
+
+An uncertain create response leaves the remote state unknown and the run ID
+unset; the invocation ID is the diagnosis key. An existing invocation is never
+modified or reused. There is no atomic transaction between MLflow and the local
+status file. If final local writing fails after confirmed remote completion,
+remote failure marking is attempted; unavailable confirmation remains unknown.
+Storage failure may prevent persistence even though the CLI returns nonzero.
+
+### Targeted verification
+
+Only `src/test_tracking_pipeline.py` is selected for this slice. It uses isolated
+files, opaque inputs/models and unfitted doubles, with fitting, inference and
+deserialisation guarded or replaced. Fake transport cases cover lifecycle,
+identity rejection, metadata/transfer/finalisation failures, uncertain creation,
+duplicate preservation, local completion failure and unchanged untracked mode.
+
+When `PIPELINE_TRACKING_TEST_URI=http://mlflow:5000` is supplied, one case uses the
+existing server and a new `car_accident_reference_pipeline_test_<uuid>` experiment.
+That case verifies the real artifact proxy and final metadata using explicitly
+labelled `opaque_test_fixture` evidence. It never trains or loads a real model
+and leaves its test run/artifacts preserved. Server unavailability is reported
+as `TODO-VERIFY`, not successful HTTP evidence. The historical importer tests,
+earlier eleven pipeline tests, API/app tests and DVC recovery are not repeated.
+
+The earlier eleven-test result lacks contemporaneous candidate hashes; later
+source hashes cannot retroactively bind that historical test run.
+
+### Historical implementation verification (2026-10-10)
+
+The initial targeted suite ran from `2026-10-10T17:31:14.8418701Z` to
+`2026-10-10T17:31:23.7800964Z`: 19 selected tests, 18 passed and one skipped,
+5.194 seconds of unittest execution, process exit 0. It used the separately
+built image ID
+`sha256:c10da6636ebe3dc0254a1a43902c8316912a78d76d3d29cd4aa94e4c1361d2da`.
+The wrapper printed SHA-256 of the actual executed source files before selecting
+only `test_tracking_pipeline.py`:
+
+| Executed file | SHA-256 |
+| --- | --- |
+| `src/run_pipeline.py` | `e76f46170704d2c74aab285151af4719acf52b84f7474fc1e05fb8270e19340a` |
+| `src/tracking/track_pipeline_run.py` | `b5768dc7abe5a7409116694aea6eda7a4a1a204032636cb5e4e19b42f7c8cfcb` |
+| `src/test_tracking_pipeline.py` | `6b6a93230d9b16925da1296a0536497169348a04f5e319a9e17052fc0fa87ed9` |
+| `src/data/make_dataset.py` | `cb834b3a60d84a19540c4e8ac2c0e3d0027f3b447121ed7aff7515780330541e` |
+| `src/models/train_model.py` | `301e0c5305974d16af53f31eb01775e76ecb59d7a91331dbc9ee7e694cac4edb` |
+| `src/tracking/import_reference_run.py` | `9eea9f91ad8305b3f3791cb604d2be5073e369ec7add4bee6326aa3c7636e8ef` |
+
+The retained invocation used `docker compose` with the explicit repository,
+`compose.yaml` and `compose.tracking.yaml`, `run --rm --no-deps -T
+--interactive=false --pull never`, a read-only override for `/app/data/runs`,
+`PIPELINE_TRACKING_TEST_URI=http://mlflow:5000`, and `pipeline-run python -B -c`
+with this wrapper:
+
+```python
+import hashlib, pathlib, sys, unittest
+paths = ['src/run_pipeline.py', 'src/data/make_dataset.py', 'src/models/train_model.py', 'src/tracking/track_pipeline_run.py', 'src/tracking/import_reference_run.py', 'src/test_tracking_pipeline.py']
+for name in paths:
+    print('EXECUTED_SOURCE_SHA256 ' + name + '=' + hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest(), flush=True)
+suite = unittest.defaultTestLoader.discover('src', pattern='test_tracking_pipeline.py')
+result = unittest.TextTestRunner(verbosity=2).run(suite)
+sys.exit(0 if result.wasSuccessful() else 1)
+```
+
+During that historical run, the real HTTP artifact round trip was skipped with DNS
+`gaierror`; no HTTP test experiment/run was created. Read-only container
+inspection at `2026-10-10T17:30:04.2387758Z` found the existing MLflow container
+stopped (`Exited (255)`). It was preserved; no service was started or restarted
+in that phase. The later bounded HTTP evidence below supersedes that integration
+gap without changing the historical result or its source identities.
+
+### Corrected checkpoint evidence (2026-10-10)
+
+The bounded correction suite ran from `2026-10-10T18:55:42.3581882Z` to
+`2026-10-10T18:56:03.6959299Z`: 24 selected tests, 23 passed and one explicitly
+skipped, 6.108 seconds of unittest execution, exit 0. HTTP was disabled without
+a server probe. Regression cases cover artifact changes after manifest creation
+and during transfer, report/model linkage, empty tracking URIs and omitted options.
+
+The separate HTTP phase selected only
+`test_tracking_pipeline.TrackingPipelineTests.test_opaque_round_trip_against_existing_mlflow`.
+It ran from `2026-10-10T19:35:51.760358Z` to `2026-10-10T19:36:02.843605Z`:
+one test passed, no skip, 6.665 seconds of unittest execution, exit 0.
+The existing local container was started separately; its published endpoint
+returned MLflow 3.17.0. In the existing project network, `mlflow` resolved only
+to that container's verified IP. The test exercised the corrected `PipelineTracker`
+and real HTTP client, including verified artifact round trips. Its assertions
+confirmed local `completed`, remote `FINISHED`, `opaque_test_fixture`, the expected
+opaque-model SHA-256 and absence of metrics. Processing, training and model loading
+were replaced by doubles; no real training or evaluation occurred.
+
+- Experiment: `car_accident_reference_pipeline_test_0ea8f353d8714819be3a21c8b4e27993`.
+- Experiment ID: `2`.
+- Run ID: `f57ed1d4d90548d8a439169c5e2c35b2`; fixture artifacts remain preserved.
+
+Both phases used the immutable image ID recorded above, current sources mounted
+read-only and disabled bytecode writes. Runtime-visible source hashes matched
+the host candidate; these identities do not retrospectively bind earlier runs:
+
+| Corrected working file | Raw SHA-256 |
+| --- | --- |
+| `src/run_pipeline.py` | `8367da5ec30a9036c330f1e2ef3fa1ffeca501596fc1ce150ef5630c8af6be09` |
+| `src/tracking/track_pipeline_run.py` | `260e94c42f93ef2474a5a076706f47c64001daccecee0cde2cfb14fc39b68983` |
+| `src/test_tracking_pipeline.py` | `b67bbd8b5e496d85be28ea91b2f728129ff15014e83c086297eb042e3877e0ff` |
+
+Launcher end-to-end operation, real training and serving verification remain
+unconfirmed. No model quality or delivery approval follows from this checkpoint.
+Level 1 remains `NON_FINAL`; `approved_for_delivery=false`.
 
 ## References
 
 - [MLflow 3.17.0 release](https://github.com/mlflow/mlflow/releases/tag/v3.17.0)
 - [Tracking server architecture](https://mlflow.org/docs/latest/self-hosting/architecture/tracking-server/)
 - [MLflow REST API](https://mlflow.org/docs/latest/api_reference/rest-api.html)
+- [MLflow 3.17.0 REST service definitions](https://github.com/mlflow/mlflow/blob/v3.17.0/mlflow/protos/service.proto)

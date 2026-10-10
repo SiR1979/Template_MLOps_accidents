@@ -39,7 +39,9 @@ flowchart TD
     FIT --> MODEL["Saved model in a new run directory"]
     MODEL --> MODEL_CHECK["Technical model contract checks"]
     MODEL_CHECK --> REPORT["New technical validation report"]
-    REPORT --> DONE["Run completed; delivery approval false"]
+    REPORT -->|"Existing mode"| DONE["Run completed; delivery approval false"]
+    REPORT -->|"Explicit tracked mode"| RECORD["Record identities and verify artifact copies"]
+    RECORD -->|"Confirmed MLflow FINISHED"| DONE
     MODEL -.-> EVAL["Evaluation in the separate functional test"]
     TEST -.-> EVAL
 ```
@@ -62,6 +64,8 @@ flowchart TD
   marked `completed`; this does not establish model quality or delivery approval.
 - Evaluation currently belongs to the separate functional test.
   It is not an automatic pipeline acceptance or delivery gate.
+- Explicit tracked runs additionally require recorded provenance and verified
+  artifact copies in the existing local MLflow server before local completion.
 
 Technical pipeline validation addition: 2026-10-10. The October 3 functional
 report predates this addition and remains unchanged. Targeted test-double checks
@@ -108,6 +112,12 @@ flowchart TD
 The image contains `src/run_pipeline.py` and `src/data` source files.
 Changes to these files require rebuilding the image.
 
+The optional `pipeline-run` service builds a separate pipeline image from that
+Dockerfile. Its PowerShell launcher records Git/configuration/source observations
+and pins the actual image ID for one finite invocation. It starts no dependencies.
+Only new-run storage is writable; raw/reference data and model sources are read-only.
+The existing workspace command remains available without tracking.
+
 The host directory `src/models` is mounted over the corresponding image
 directory. Executed model scripts can therefore differ from the image
 contents. The completed functional test compared all three affected
@@ -139,6 +149,9 @@ A completed training run has `approved_for_delivery=false`. Completion requires
 the existing stages, technical data/model checks and technical report writing.
 Evaluation results do not determine that status. A technical failure uses the
 existing failed-status and nonzero-exit handling and preserves produced files.
+Tracked mode also requires confirmed artifact/metadata recording. Its new
+`tracking_evidence/` files bind invocation and MLflow IDs to the executed sources,
+actual inputs, configuration, environment, technical report and produced model.
 
 ## 3. Local prepared-feature API
 
@@ -215,9 +228,21 @@ and image identity remain unknown. Import Git baseline, dirty worktree state,
 image identity, importer hash and time are recorded separately.
 
 A sequential repeat verifies the same finished run and its artifact hashes.
-This does not instrument subsequent pipeline runs, register a model version,
-change the API model, enforce acceptance thresholds or retrain. Detailed storage,
+The historical importer does not instrument subsequent pipeline runs, register
+a model version, change the API model, enforce acceptance thresholds or retrain. Detailed storage,
 provenance, commands and test scope are in [tracking.md](tracking.md).
+
+Implementation addition: 2026-10-10. The explicit new-run tracking mode uses a
+separate `car_accident_reference_pipeline` experiment. Lifecycle tags and
+exclusively created provenance/artifact manifests bind new training observations
+to verified artifact copies. Existing DVC input metadata is referenced only when
+the actual input hashes match; new outputs are not automatically DVC-versioned.
+Tracking errors fail the local run and attempt remote failure marking. Uncertain
+remote outcomes remain explicit; no automatic replay or atomic cross-store
+transaction is claimed. Targeted doubles establish only their own test scope.
+The opaque HTTP case requires an already running server; its current execution
+evidence and limitations are documented in [tracking.md](tracking.md).
+Neither case establishes a real-data training result or model quality.
 
 ## 6. Local reference artifact versioning
 
@@ -254,8 +279,8 @@ protection against local drive loss remain separate work.
 ## 7. Target architecture and remaining work
 
 This diagram describes the target integration. The local API and prepared-feature
-application have separate implementations. A dedicated pipeline service,
-automated accepted-model delivery, future pipeline tracking and full monitoring
+application have separate implementations. Configured pipeline triggering,
+automated accepted-model delivery and full monitoring
 remain planned. Local historical reference tracking is now implemented separately.
 Logical layers do not imply one microservice for every pipeline stage.
 
@@ -279,7 +304,7 @@ flowchart TD
         DATASETS["DVC reference data; future run versions"]
         CANDIDATE["Candidate model and run artifacts"]
         ACCEPTED["Accepted model version"]
-        TRACKING["MLflow: reference import; future pipeline tracking"]
+        TRACKING["MLflow: reference import and explicit new-run tracking"]
     end
 
     MONITOR["Operational and model monitoring"]
@@ -303,15 +328,15 @@ flowchart TD
 | Component | Responsibility and lifecycle |
 | --- | --- |
 | `workspace` | Current development and test environment; may remain optional after responsibilities are covered |
-| `pipeline` | Proposed finite job for preprocessing and training; independent of prediction requests |
+| `pipeline-run` | Implemented manual finite job for preprocessing/training and optional tracking; configured triggering remains planned |
 | `api` | Implemented local prepared-feature service with an explicit model hash |
 | `app` | Separate local prepared-feature form and gateway to the API |
-| `mlflow` and storage | Local reference metadata and byte-identical artifact copies; future pipeline integration remains planned |
+| `mlflow` and storage | Historical imports and explicit new pipeline-run metadata with verified artifact copies |
 | Monitoring | Track failures, service health and agreed data/model indicators |
 
 The local API, prepared-feature application, historical reference tracking
-and reference artifact versioning have separate implementations. Future pipeline
-tracking, automatic run versioning, configured triggers and controlled delivery
+and reference artifact versioning have separate implementations. Explicit
+new-run tracking is available; automatic run versioning, configured triggers and controlled delivery
 remain subsequent work. A complete raw-input application remains separate.
 
 MLflow is selected for local tracking. DVC is selected for local reference

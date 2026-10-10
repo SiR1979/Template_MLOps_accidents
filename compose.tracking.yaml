@@ -67,3 +67,55 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+
+  pipeline-run:
+    image: ${PIPELINE_IMAGE_ID:-car-accident-pipeline-tracking:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["tools"]
+    working_dir: /app
+    command: ["python", "-B", "src/run_pipeline.py"]
+    volumes:
+      - type: bind
+        source: ./data/runs
+        target: /app/data/runs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/raw
+        target: /app/data/raw
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/preprocessed
+        target: /app/data/preprocessed
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./src/models
+        target: /app/src/models
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./versioning
+        target: /app/versioning
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PIPELINE_CONTEXT_PATH:-./versioning/reference_manifest.json}
+        target: /app/invocation_context.json
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

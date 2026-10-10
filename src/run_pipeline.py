@@ -91,7 +91,7 @@ def validate_model_artifact(model_path):
     }
 
 
-def run_pipeline(raw_directory, run_directory):
+def run_pipeline(raw_directory, run_directory, tracker=None):
     raw_directory = Path(raw_directory).resolve(strict=True)
     run_directory = Path(run_directory).resolve()
     raw_paths = [raw_directory / name for name in RAW_FILENAMES]
@@ -116,20 +116,35 @@ def run_pipeline(raw_directory, run_directory):
     }
 
     def write_status():
+        if tracker is not None:
+            record["tracking"] = dict(tracker.state)
         status_path.write_text(
             json.dumps(record, indent=2) + "\n", encoding="utf-8"
         )
 
+    def phase(name):
+        if tracker is not None:
+            tracker.phase(name)
+            write_status()
+
     try:
         write_status()
+        if tracker is not None:
+            tracker.start(raw_directory, run_directory, record, FEATURES, CONTRACT_VERSION)
+            write_status()
         processed_directory = run_directory / "preprocessed"
+        phase("preprocessing")
         process_data(*raw_paths, processed_directory)
+        phase("data_validation")
         data_validation = validate_prepared_data(processed_directory)
+        phase("training")
         model_path = train_model(
             processed_directory,
             run_directory / "model" / "trained_model.joblib",
         )
+        phase("model_validation")
         model_validation = validate_model_artifact(model_path)
+        phase("report_writing")
         report_path = run_directory / "validation_report.json"
         report = {
             "scope": "technical_data_and_model_validation",
@@ -148,6 +163,10 @@ def run_pipeline(raw_directory, run_directory):
         with report_path.open("x", encoding="utf-8") as stream:
             json.dump(report, stream, indent=2, allow_nan=False)
             stream.write("\n")
+        if tracker is not None:
+            phase("artifact_recording")
+            tracker.finish(report_path, model_path)
+            tracker.state["phase"] = "local_completion"
         record.update(
             status="completed",
             finished_at_utc=utc_now(),
@@ -156,6 +175,12 @@ def run_pipeline(raw_directory, run_directory):
         )
         write_status()
     except Exception as error:
+        if tracker is not None:
+            try:
+                tracker.fail(error)
+            except Exception as tracking_error:
+                tracker.state.update(status="unknown", secondary_error_type=type(tracking_error).__name__)
+                logging.exception("Could not record the tracking failure.")
         record.update(
             status="failed",
             finished_at_utc=utc_now(),
@@ -175,10 +200,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", required=True, type=Path)
     parser.add_argument("--run-dir", required=True, type=Path)
+    parser.add_argument("--tracking-uri")
+    parser.add_argument("--tracking-context", type=Path)
     args = parser.parse_args()
+    if args.tracking_uri is not None and not args.tracking_uri:
+        parser.error("--tracking-uri must not be empty")
+    if (args.tracking_uri is None) != (args.tracking_context is None):
+        parser.error("--tracking-uri and --tracking-context must be supplied together")
 
     try:
-        result = run_pipeline(args.raw_dir, args.run_dir)
+        if args.tracking_uri is not None:
+            from tracking.track_pipeline_run import PipelineTracker
+
+            tracker = PipelineTracker(args.tracking_uri, args.tracking_context)
+            result = run_pipeline(args.raw_dir, args.run_dir, tracker=tracker)
+        else:
+            result = run_pipeline(args.raw_dir, args.run_dir)
     except Exception:
         logging.exception("Reference pipeline failed.")
         return 1
