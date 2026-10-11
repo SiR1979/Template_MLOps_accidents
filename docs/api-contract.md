@@ -63,15 +63,21 @@ JSON interface. Request records are not logged and access logging is disabled.
 ## Artifact and runtime
 
 Local selection:
-`data/runs/validation_20261003T193310Z_56c49087/reference_run/model/trained_model.joblib`
+`data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/model/trained_model.joblib`
 
 SHA-256:
-`5e8775b69782640c0ee244bfa7c427928ece0f01be877688102313a8bc7a1a2b`
+`9dcd169ed58e0b09a2367b17055abee4b7424741d1b02fa60aa196fe049f6b99`
 
 Startup checks this identity before deserialization, then verifies the estimator
 type, ordered feature names, feature count and class codes. There is no fallback
 artifact. The model is loaded once into the process and is mounted read-only.
-Changing the model requires an explicit configuration change and restart.
+Changing the model requires an explicit configuration change and API container recreation.
+
+The candidate selected here is authorized on 2026-10-11 for one controlled
+local technical demonstration only. Training records retain
+approved_for_delivery=false. Model quality acceptance and Level 1 acceptance
+remain separate. Delivery results are recorded separately in
+data/delivery_evidence/local_delivery_20261011T195239Z_19d3274fd12e49d5b3cb9abbd73da5ea/delivery.json.
 
 The local API is separately authorized for demonstration. The historical report
 retains `approved_for_delivery=false`; no automatic delivery gate is bypassed or
