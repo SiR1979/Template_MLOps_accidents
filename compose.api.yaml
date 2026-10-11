@@ -13,13 +13,13 @@ services:
     command: ["python", "-m", "uvicorn", "src.api.service:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]
     environment:
       MODEL_PATH: /app/model/trained_model.joblib
-      MODEL_SHA256: 5e8775b69782640c0ee244bfa7c427928ece0f01be877688102313a8bc7a1a2b
+      MODEL_SHA256: 9dcd169ed58e0b09a2367b17055abee4b7424741d1b02fa60aa196fe049f6b99
       PYTHONDONTWRITEBYTECODE: "1"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - type: bind
-        source: ./data/runs/validation_20261003T193310Z_56c49087/reference_run/model/trained_model.joblib
+        source: ./data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/model/trained_model.joblib
         target: /app/model/trained_model.joblib
         read_only: true
         bind:
