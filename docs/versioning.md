@@ -112,6 +112,111 @@ preserves new source files, cache, local store, recovery files, backup and outpu
 Do not rerun the one-time installer on a partial installation or clear storage
 to make it pass. Diagnose the reported phase first.
 
+## October 11 candidate: bounded registration and recovery
+
+The separate candidate tool selects one opaque model, not all 19 artifacts of
+the completed tracked training invocation. Historical pointers, the one-time
+reference installer, configuration, primary cache and Compose selection remain
+unchanged. Training receipts retain `approved_for_delivery=false`.
+
+| Identity | Value |
+| --- | --- |
+| Run | `reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea` |
+| Invocation | `19d3274fd12e49d5b3cb9abbd73da5ea` |
+| MLflow run | `dcaea4d2f6ef4b3087f86e8bde3365d7` |
+| Model relative path | `data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/model/trained_model.joblib` |
+| Size | `107180009` bytes |
+| SHA-256 | `9dcd169ed58e0b09a2367b17055abee4b7424741d1b02fa60aa196fe049f6b99` |
+| DVC MD5 | `b2d9206c3d45a8c77599915c46e8cacb` |
+| Pointer | `versioning/candidate_20261011_19d3274f_model.dvc` |
+| Identity manifest | `versioning/candidate_20261011_19d3274f_manifest.json` |
+
+`scripts/register_candidate.ps1` requires fresh explicit authorization and the
+unpublished local branch `work/candidate-recovery` at selection commit
+`9f7028d9702f006159d8d68b067863f6db77a766`, with an empty index. Its bounded
+worktree guard accepts only the two new tools and this documentation change
+before generated candidate metadata exists, plus the three preserved local PNGs.
+It rejects existing candidate metadata, phase directories or candidate objects.
+Do not rerun it against any partial or completed attempt.
+
+Prepare a unique directory beneath the existing store's `validation/`, named
+`candidate_20261011_19d3274f_<UTC>_<UUID>`, and preserve the original documentation
+bytes as `original_versioning.md` before editing. The launcher takes this absolute
+directory as its required `-EvidenceDirectory` argument. It retains command
+records, a sanitized context, original-file hashes, container mount inventories
+and `report.json` there. It records allowlisted identities and hashes without
+publishing complete configurations or environments.
+
+The actual tool image is pinned to
+`sha256:02d4a4e4c447f07446899843b89bb459edf6e79f561ccb8008974fccd1abbfb9`.
+The new `src/versioning/register_candidate.py` is mounted read-only; no build or
+image pull occurs. Before DVC writes, the tool requires actual DVC version
+`3.67.1`. Containers have no network or ports, a read-only root, dropped
+capabilities and no host credentials or repository mount. They are retained
+after exit so their identities and partial state remain inspectable.
+
+Registration uses a new `registration/` directory and its own empty content
+cache. Only the selected original model is mounted read-only at its relative
+path. DVC initializes this workspace with `--no-scm`, uses copy mode, creates one
+new pointer with `wdir: ..`, then runs targeted
+`commit --force --no-relink`, `status --json` and `push --remote reference`.
+This DVC commit fills the new pointer and content cache; it is not a Git commit.
+The store is the existing `/store/objects`, not a replacement historical
+baseline. Pointer and identity-manifest publication into the local worktree
+uses exclusive creation. Their names are never overwritten.
+
+The manifest binds the one model and pointer hash to all three run identities
+and the paths/hashes of existing technical, training, provenance, artifact,
+invocation and local-delivery receipts. Registration HEAD, tool hashes, actual
+image and DVC version are separate from historical training identity.
+Registration alone does not prove recovery; that phase has its own records.
+
+Exactly one recovery runs in new `recovery/` with an initially empty private
+cache. Its container can access only that workspace, the new identity metadata,
+the read-only tool and the read-only store objects. Neither original model nor
+primary or registration cache is mounted. After detached initialization it runs
+one targeted `dvc pull --remote reference`. The restored model must have the
+exact size and SHA-256 above; Windows independently checks those bytes.
+No model is deserialized and no service is started. Host guards also verify that
+historical source files, receipts, pointers, PNGs, primary-cache objects and
+previous store objects remain unchanged, with exactly one new store model blob.
+
+Any failed command or identity guard ends the attempt. Preserve its UTC time,
+exit code, original error, unknown transfer outcome, metadata, caches, objects,
+container and partially restored bytes. There is no automatic replay, cleanup
+or overwrite. Diagnose that phase before requesting another attempt.
+
+A later, separately authorized restoration uses the same isolated retrieval
+route: local store to a new empty recovery workspace, verify SHA-256 and size,
+then exclusively copy to the unchanged Compose source path only if it is absent.
+Never overwrite an existing selected model. This implementation performs only
+the isolated check and leaves the serving path unchanged. Recovery is local
+technical evidence, not model-quality acceptance, delivery approval, protection
+against drive loss or Level 1 completion. Git staging, commit, push and public
+publication require separate authorization.
+
+## Publication metadata projection
+
+The candidate identity manifest is a metadata projection of the preserved
+original manifest, whose SHA-256 is
+`79bb97da8322cbc89c1b8b0d4f0f143641152786e9052b3e215d1b24e1d593b6`.
+`registration.branch` is deliberately `null`, with `branch_disclosure: "withheld"`.
+The neutral branch required by the corrected tools is not asserted to be the
+branch used for the historical registration.
+
+Registration HEAD, UTC time, context hash, image identity, DVC version and
+executed-tool hashes remain historical identities. Those tool hashes identify
+the original sources executed during the recorded registration and recovery;
+they do not identify the corrected sources. The corrected tools have no new
+runtime validation. Original source bytes, manifest and recovery/QA receipts
+are preserved privately; their recorded hashes are not rewritten.
+
+The recorded local recovery completed at `2026-10-12T14:05:50.8165957Z` using
+the existing local store. This metadata correction repeats no registration
+or recovery and adds no model-quality, service-readiness or Level 1 evidence.
+`approved_for_delivery=false` and Level 1 `NON_FINAL` remain unchanged.
+
+
 ## Remaining work
 
 This phase versions one historical baseline. Automatic registration of new

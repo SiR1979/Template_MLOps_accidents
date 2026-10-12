@@ -1,0 +1,7 @@
+wdir: ..
+outs:
+- path: 
+    data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/model/trained_model.joblib
+  md5: b2d9206c3d45a8c77599915c46e8cacb
+  size: 107180009
+  hash: md5
