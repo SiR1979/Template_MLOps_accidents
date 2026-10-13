@@ -3,3 +3,5 @@
     autostage = false
 [cache]
     type = copy
+['remote "dagshub"']
+    url = https://dagshub.com/SiR1979/prediction_severity_car_accidents.dvc
