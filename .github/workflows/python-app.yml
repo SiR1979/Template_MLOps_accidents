@@ -1,5 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# Lint and run the unit tests with the pinned runtime dependencies.
 name: Python application
 
 on:
@@ -16,23 +15,38 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      # Same setting as the runtime image (Dockerfile).
+      PANDAS_COPY_ON_WRITE: "0"
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        # Same Python version as the runtime image (Dockerfile).
+        python-version: "3.11"
+        cache: pip
+        cache-dependency-path: |
+          requirements-runtime.txt
+          src/api/requirements.txt
+          src/tracking/requirements.txt
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install -r requirements-runtime.txt -r src/api/requirements.txt -r src/tracking/requirements.txt
         pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip check
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Provide the example features the app image bakes in
+      run: |
+        # compose.app.yaml copies this file into the image at build time
+        cp src/models/test_features.json src/app/example_features.json
     - name: Test with pytest
       run: |
         pytest
