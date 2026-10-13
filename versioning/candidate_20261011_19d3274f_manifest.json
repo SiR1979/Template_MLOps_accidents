@@ -1,0 +1,66 @@
+{
+  "approved_for_delivery": false,
+  "historical_approved_for_delivery": false,
+  "invocation_id": "19d3274fd12e49d5b3cb9abbd73da5ea",
+  "level_1": "NON_FINAL",
+  "linked_historical_evidence": {
+    "data/delivery_evidence/local_delivery_20261011T195239Z_19d3274fd12e49d5b3cb9abbd73da5ea/delivery.json": {
+      "sha256": "45dcf3c09b74ad6591c99e33d7cddc601b8e1bfc403c9491dd1a475d955455fc",
+      "size_bytes": 64911
+    },
+    "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/run_status.json": {
+      "sha256": "7da515b29e61d2cdd977455c485285448dbbaf8b631d470c848891cad97624ef",
+      "size_bytes": 967
+    },
+    "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/tracking_evidence/artifact_manifest.json": {
+      "sha256": "38b5da2eabe5feb133b4d827eb3b469aadd72d23b126ea850af82c66685286e1",
+      "size_bytes": 3566
+    },
+    "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/tracking_evidence/invocation_context.json": {
+      "sha256": "274c041530d06c2df79e52fc0fc350e2dee779ecc98dc5b74c431a5c0facf27e",
+      "size_bytes": 17919
+    },
+    "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/tracking_evidence/run_provenance.json": {
+      "sha256": "c2e581162e6fecc6146b984e2f4baacb33e58577a54b419d4cba07a15103575f",
+      "size_bytes": 5608
+    },
+    "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/validation_report.json": {
+      "sha256": "dbb8590376c0029cb0975c1cf6a62e875f3f25f6293c46400f8d7b0e14e9bfa1",
+      "size_bytes": 1741
+    }
+  },
+  "mlflow_run_id": "dcaea4d2f6ef4b3087f86e8bde3365d7",
+  "model": {
+    "dvc_md5": "b2d9206c3d45a8c77599915c46e8cacb",
+    "relative_path": "data/runs/reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea/model/trained_model.joblib",
+    "sha256": "9dcd169ed58e0b09a2367b17055abee4b7424741d1b02fa60aa196fe049f6b99",
+    "size_bytes": 107180009
+  },
+  "model_deserialized": false,
+  "pointer": {
+    "relative_path": "versioning/candidate_20261011_19d3274f_model.dvc",
+    "sha256": "4d8ad324e60155263fd398fd05b2dcd784ca41bb43993e5fd6091f1fc981e013"
+  },
+  "publication": {
+    "scope": "metadata_projection_only",
+    "source_manifest_sha256": "79bb97da8322cbc89c1b8b0d4f0f143641152786e9052b3e215d1b24e1d593b6"
+  },
+  "recovery_evidence": "separate phase_result.json; registration alone does not prove recovery",
+  "registration": {
+    "branch": null,
+    "branch_disclosure": "withheld",
+    "context_sha256": "66ad765b5353fa3bfd39f4cfa3c75f2c13bb2076e34de0da854c2a6f30782dea",
+    "dvc_version": "3.67.1",
+    "evidence_directory": "C:\\Users\\simon\\MLOps_car_accident_dvc_store\\validation\\candidate_20261011_19d3274f_20261012T135631Z_6a28678d28fd4fa09d3ec02eaf057216",
+    "git_head": "9f7028d9702f006159d8d68b067863f6db77a766",
+    "image_id": "sha256:02d4a4e4c447f07446899843b89bb459edf6e79f561ccb8008974fccd1abbfb9",
+    "launcher_sha256": "ffa106ca61cdb9314f858ed78050b2ea54250566190e7218d23f0440d069c7cd",
+    "registered_at_utc": "2026-10-12T14:05:26.181133+00:00",
+    "registrar_sha256": "e06f77cf0baa314e1e942efa2f17554b0e04c5b06836311fd17b9c46cc3d9531",
+    "training_identity_source": "linked historical evidence; registration identities are separate"
+  },
+  "run_id": "reference_20261011T144150Z_19d3274fd12e49d5b3cb9abbd73da5ea",
+  "schema_name": "candidate_model_identity_v1",
+  "scope": "one_opaque_candidate_model",
+  "training_performed": false
+}
