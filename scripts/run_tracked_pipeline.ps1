@@ -1,14 +1,29 @@
 #requires -Version 7.2
 <#
-Launch exactly one new reference pipeline run against the installed local server.
+Launch exactly one new reference pipeline run against the installed local server
+or, with -TrackingTarget dagshub, against the shared DagsHub MLflow server.
+DagsHub requires MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD (access token)
+in the calling process; their values are passed to the container but never printed.
 This script never builds images, starts dependencies, or changes Git state.
 #>
 [CmdletBinding()]
 param(
     [string]$Repository = 'C:\Users\simon\MLOps_car_accident',
-    [string]$RuntimeImage = 'car-accident-pipeline-tracking:local'
+    [string]$RuntimeImage = 'car-accident-pipeline-tracking:local',
+    [ValidateSet('local', 'dagshub')]
+    [string]$TrackingTarget = 'local'
 )
 $ErrorActionPreference = 'Stop'
+$trackingUris = @{
+    local   = 'http://mlflow:5000'
+    dagshub = 'https://dagshub.com/SiR1979/prediction_severity_car_accidents.mlflow'
+}
+$trackingUri = $trackingUris[$TrackingTarget]
+if ($TrackingTarget -eq 'dagshub') {
+    foreach ($name in @('MLFLOW_TRACKING_USERNAME', 'MLFLOW_TRACKING_PASSWORD')) {
+        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name, 'Process'))) { throw ($name + ' is required for DagsHub tracking; value withheld.') }
+    }
+}
 $repoPath = [IO.Path]::GetFullPath($Repository).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $gitExecutable = (Get-Command git -CommandType Application | Select-Object -First 1).Source
 $dockerExecutable = (Get-Command docker -CommandType Application | Select-Object -First 1).Source
@@ -103,7 +118,8 @@ try {
         '-f', (Join-Path $repoPath 'compose.tracking.yaml'), 'run', '--rm', '--no-deps', '-T',
         '--interactive=false', '--pull', 'never', 'pipeline-run', 'python', '-B', 'src/run_pipeline.py',
         '--raw-dir', '/app/data/raw', '--run-dir', $context.run_directory,
-        '--tracking-uri', 'http://mlflow:5000', '--tracking-context', '/app/invocation_context.json')
+        '--tracking-uri', $trackingUri, '--tracking-context', '/app/invocation_context.json')
+    Write-Output ('TRACKING_TARGET=' + $TrackingTarget)
     Write-Output ('INVOCATION_ID=' + $invocationId)
     Write-Output ('INVOCATION_CONTEXT_SHA256=' + (Hash-Bytes $contextBytes))
     Write-Output ('IMAGE_ID=' + $imageId)

@@ -76,6 +76,10 @@ services:
     profiles: ["tools"]
     working_dir: /app
     command: ["python", "-B", "src/run_pipeline.py"]
+    # Passed through from the launching shell only for DagsHub tracking; values never appear in this file.
+    environment:
+      - MLFLOW_TRACKING_USERNAME
+      - MLFLOW_TRACKING_PASSWORD
     volumes:
       - type: bind
         source: ./data/runs
