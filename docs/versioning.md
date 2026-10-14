@@ -217,12 +217,110 @@ or recovery and adds no model-quality, service-readiness or Level 1 evidence.
 `approved_for_delivery=false` and Level 1 `NON_FINAL` remain unchanged.
 
 
+## DagsHub shared raw-data remote
+
+Updated: 2026-10-14.
+
+The project configuration in `.dvc/config` selects `dagshub` as its default
+remote. The existing remote URL is:
+
+`https://dagshub.com/SiR1979/prediction_severity_car_accidents.dvc`
+
+This setting selects a destination; it does not upload additional artifacts.
+The historical local store and machine-specific `.dvc/config.local` remain
+separate from the shared project configuration.
+
+### Shared scope and recorded validation
+
+The documented transfer contains only the four supplied raw 2021 CSV files:
+
+- `caracteristiques-2021.csv`
+- `lieux-2021.csv`
+- `usagers-2021.csv`
+- `vehicules-2021.csv`
+
+The pointer is `versioning/raw_2021.dvc`. Five DVC objects were uploaded: one
+directory object and four file objects. An authenticated owner-account restore
+into a new empty isolated cache recovered four files totalling 31,082,914 bytes.
+All MD5 and SHA-256 hashes matched. The transfer used DVC 3.67.1.
+
+Anonymous access returned HTTP 401 in the recorded attempt. Colleague-account
+access has not been validated. Prepared data, model files, run artifacts and
+reports were not uploaded as part of this shared raw-data transfer.
+
+### Authentication on a colleague's machine
+
+Run these commands from the repository root with DVC available. Each person
+must use their own DagsHub account and access token.
+
+```powershell
+$dagshubUser = Read-Host 'Your DagsHub username'
+dvc remote modify --local dagshub auth basic
+dvc remote modify --local dagshub user $dagshubUser
+dvc remote modify --local dagshub ask_password true
+```
+
+These commands store authentication settings in the Git-ignored
+`.dvc/config.local`. When DVC prompts for a password, enter your own DagsHub
+access token. The prompt avoids putting the token in the command text or
+history. An existing `password` setting takes precedence over `ask_password`.
+
+Never commit credentials or send token values to another person. This
+interactive setup is for manual use; unattended jobs need a separately
+configured secret mechanism.
+
+### Download the shared raw data
+
+On a clone without a local default override:
+
+```powershell
+dvc pull versioning/raw_2021.dvc
+```
+
+The project default removes the need to specify `--remote dagshub`.
+
+A machine-specific `core.remote` in `.dvc/config.local` overrides the project
+default. The existing owner's local default remains `reference`. To select
+DagsHub without changing that local configuration, use:
+
+```powershell
+dvc pull --remote dagshub versioning/raw_2021.dvc
+```
+
+A plain `dvc pull` considers all current DVC pointers, including prepared data
+and models. Setting the default does not establish that those objects exist
+on DagsHub. Full repository restoration from this shared remote has not been
+validated; use the targeted raw-data command for the documented scope.
+
+### Upload boundary and historical workflows
+
+For a separately authorised update of the four raw files, the bounded transfer
+command is:
+
+```powershell
+dvc push --remote dagshub versioning/raw_2021.dvc
+```
+
+An unqualified `dvc push` can select other tracked artifacts. Changing the
+default is not permission to upload models or expand the shared scope.
+
+Historical registration and recovery remain completed one-time procedures.
+Do not rerun them to configure this remote. Raw-data transfer and restore
+evidence does not establish model quality, delivery approval or Level 1
+completion. `approved_for_delivery=false` remains unchanged.
+
+Configuration references:
+
+- [DVC default remote](https://doc.dvc.org/command-reference/remote/default)
+- [DVC pull targets](https://doc.dvc.org/command-reference/pull)
+- [DVC HTTP authentication](https://doc.dvc.org/user-guide/data-management/remote-storage/http)
+
 ## Remaining work
 
-This phase versions one historical baseline. Automatic registration of new
-training outputs, Git versioning of accepted metadata, an external data store,
-CI access, model acceptance and controlled delivery remain separate steps.
-Level 1 remains incomplete; Level 2 is tracked separately.
+The raw 2021 dataset now has a shared DagsHub remote. Automatic registration of
+new training outputs, shared storage for prepared data and models, colleague
+access validation, CI access, model acceptance and controlled delivery remain
+separate steps. Level 1 remains incomplete; Level 2 is tracked separately.
 
 ## References
 
