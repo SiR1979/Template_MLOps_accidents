@@ -1,14 +1,17 @@
-"""Import an evidenced historical run through a local MLflow artifact proxy.
+"""Import an evidenced historical run through an MLflow artifact proxy.
 
 Model files are opaque bytes. This module never loads a model or trains one.
 """
 
 import argparse
+import base64
 import hashlib
 import http.client
 import json
 import math
+import os
 import re
+import ssl
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit
@@ -27,6 +30,8 @@ ARTIFACT_NAMES = {
     "reference_run/model/trained_model.joblib": "reference/trained_model.joblib",
 }
 METRICS = {"test_rows", "feature_count", "accuracy", "balanced_accuracy", "macro_f1", "example_prediction_code"}
+DAGSHUB_HOST = "dagshub.com"
+CREDENTIAL_VARIABLES = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD")
 
 
 class ImportFailure(RuntimeError):
@@ -106,28 +111,75 @@ def validate_sources(root, expected):
 
 
 class LocalClient:
-    """Use direct local HTTP, without credentials, proxies, or redirects."""
+    """Use direct local HTTP, or verified HTTPS to DagsHub only; never proxies or redirects.
 
-    def __init__(self, uri):
+    Local servers receive no credentials. DagsHub receives a username and access
+    token from the environment; the token is held only in the request header.
+    """
+
+    def __init__(self, uri, environ=None):
         parsed = urlsplit(uri)
-        require(parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "mlflow"), "A local HTTP tracking URI is required.")
-        require(parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment and parsed.path in ("", "/"), "Unexpected tracking URI components.")
-        self.host = parsed.hostname
-        self.port = parsed.port or 5000
+        require(parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment, "Unexpected tracking URI components.")
+        self._authorization = None
+        if parsed.scheme == "https" and parsed.hostname == DAGSHUB_HOST:
+            require(parsed.port in (None, 443) and re.fullmatch(r"/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.mlflow", parsed.path) is not None, "Unexpected DagsHub tracking URI.")
+            environ = os.environ if environ is None else environ
+            username, token = (environ.get(name, "") for name in CREDENTIAL_VARIABLES)
+            require(bool(username) and bool(token), "DagsHub tracking requires MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD.")
+            require(":" not in username, "Invalid DagsHub username.")
+            self.target = "dagshub"
+            self.host = DAGSHUB_HOST
+            self.port = 443
+            self.prefix = parsed.path
+            self._authorization = "Basic " + base64.b64encode(f"{username}:{token}".encode()).decode("ascii")
+        else:
+            require(parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "mlflow"), "A local HTTP or DagsHub HTTPS tracking URI is required.")
+            require(parsed.path in ("", "/"), "Unexpected tracking URI components.")
+            self.target = "local"
+            self.host = parsed.hostname
+            self.port = parsed.port or 5000
+            self.prefix = ""
+
+    def __repr__(self):
+        return f"LocalClient(target={self.target!r}, host={self.host!r})"
 
     def connection(self):
+        if self.target == "dagshub":
+            return http.client.HTTPSConnection(self.host, self.port, timeout=60, context=ssl.create_default_context())
         return http.client.HTTPConnection(self.host, self.port, timeout=60)
+
+    def headers(self, content_type=None):
+        values = {} if content_type is None else {"Content-Type": content_type}
+        if self._authorization is not None:
+            values["Authorization"] = self._authorization
+        return values
+
+    @staticmethod
+    def check_status(response, action):
+        if response.status in (401, 403):
+            raise ImportFailure(f"{action} returned HTTP {response.status}; check the tracking username and access token.")
+        require(response.status == 200, f"{action} returned HTTP {response.status}.")
 
     def request(self, method, route, payload=None):
         data = None if payload is None else json.dumps(payload, allow_nan=False).encode()
         connection = self.connection()
         try:
-            connection.request(method, route, body=data, headers={"Content-Type": "application/json"})
+            connection.request(method, self.prefix + route, body=data, headers=self.headers("application/json"))
             response = connection.getresponse()
-            require(response.status == 200, f"MLflow {method} returned HTTP {response.status}.")
+            self.check_status(response, f"MLflow {method}")
             content = response.read(1024 * 1024 + 1)
             require(len(content) <= 1024 * 1024, "MLflow JSON response is too large.")
             return decode_json(content) if content else {}
+        finally:
+            connection.close()
+
+    def server_version(self):
+        connection = self.connection()
+        try:
+            connection.request("GET", self.prefix + "/version", headers=self.headers())
+            response = connection.getresponse()
+            self.check_status(response, "MLflow version check")
+            return response.read(128).decode().strip()
         finally:
             connection.close()
 
@@ -151,8 +203,9 @@ class LocalClient:
         size = Path(path).stat().st_size
         count = 0
         try:
-            connection.putrequest("PUT", self.artifact_route(run, name))
-            connection.putheader("Content-Type", "application/octet-stream")
+            connection.putrequest("PUT", self.prefix + self.artifact_route(run, name))
+            for header, value in self.headers("application/octet-stream").items():
+                connection.putheader(header, value)
             connection.putheader("Content-Length", str(size))
             connection.endheaders()
             with Path(path).open("rb") as source:
@@ -161,7 +214,7 @@ class LocalClient:
                     count += len(chunk)
                     connection.send(chunk)
             response = connection.getresponse()
-            require(response.status == 200, f"Artifact upload returned HTTP {response.status}.")
+            self.check_status(response, "Artifact upload")
             response.read(65536)
             require(count == size and digest.hexdigest() == expected_hash, "Source changed during upload.")
         finally:
@@ -172,9 +225,9 @@ class LocalClient:
         digest = hashlib.sha256()
         count = 0
         try:
-            connection.request("GET", self.artifact_route(run, name))
+            connection.request("GET", self.prefix + self.artifact_route(run, name), headers=self.headers())
             response = connection.getresponse()
-            require(response.status == 200, f"Artifact download returned HTTP {response.status}.")
+            self.check_status(response, "Artifact download")
             while chunk := response.read(1024 * 1024):
                 count += len(chunk)
                 require(count <= expected_size, "Stored artifact is larger than its source.")

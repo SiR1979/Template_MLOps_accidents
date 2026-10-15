@@ -356,6 +356,71 @@ Launcher end-to-end operation, real training and serving verification remain
 unconfirmed. No model quality or delivery approval follows from this checkpoint.
 Level 1 remains `NON_FINAL`; `approved_for_delivery=false`.
 
+## DagsHub shared tracking target
+
+Updated: 2026-10-14.
+
+New pipeline runs can be recorded on the shared DagsHub MLflow server instead
+of the local one. The tracking URI selects the target:
+
+| Target | Tracking URI | Transport and authentication | Server version check |
+| --- | --- | --- | --- |
+| `local` | `http://mlflow:5000` (or `localhost`/`127.0.0.1`) | Plain HTTP, no credentials | Exactly MLflow 3.17.0 |
+| `dagshub` | `https://dagshub.com/SiR1979/prediction_severity_car_accidents.mlflow` | HTTPS with certificate and hostname verification; HTTP Basic with username and access token | Any MLflow 3.x; the observed version is recorded |
+
+`LocalClient` accepts HTTPS only for `dagshub.com` on port 443 with an
+`/<owner>/<repo>.mlflow` path. Other hosts, schemes, ports, credentials in the
+URI, query strings and extra path segments are rejected before any request.
+Redirects are never followed; every non-200 response stops the run, and 401/403
+responses name the credentials as the likely cause without repeating them.
+
+Credentials come only from `MLFLOW_TRACKING_USERNAME` and
+`MLFLOW_TRACKING_PASSWORD` (the personal DagsHub access token). Both are required
+for DagsHub; local targets never read or send them. DagsHub answers
+unauthenticated searches with an empty result instead of an error, so missing
+credentials are rejected before the first request.
+
+The token is held only in the request header. It is not written to run tags,
+parameters, provenance, the invocation context, configuration evidence or error
+messages. `compose.tracking.yaml` passes both variables to `pipeline-run` by name
+only; `docker compose config` prints their values when they are set, so do not
+share that output.
+
+Each run carries the tags `tracking_target` and `tracking_server_version`. All
+provenance, artifact-hash and remote read-back checks are unchanged for both
+targets.
+
+### Launching a DagsHub-tracked run
+
+Set the variables in the launching process, then select the target:
+
+```powershell
+$env:MLFLOW_TRACKING_USERNAME = Read-Host 'Your DagsHub username'
+$env:MLFLOW_TRACKING_PASSWORD = Read-Host 'Your DagsHub access token' -MaskInput
+& .\scripts\run_tracked_pipeline.ps1 -TrackingTarget dagshub
+```
+
+The launcher fails before any Git, Docker or tracking step when either variable
+is missing, and prints `TRACKING_TARGET=` but never the credential values.
+`-TrackingTarget local` (the default) keeps the previous behaviour.
+
+### Validation on 2026-10-14
+
+- Compatibility probe: DagsHub runs MLflow 3.5.1. Run creation, tags, parameters,
+  `mlflow-artifacts:` artifact URIs, proxied upload and download below the
+  `.mlflow` path prefix, `FINISHED` read-back and 401 for a wrong token behaved
+  as the tracker expects. The probe experiment `connectivity_check` was deleted.
+- `src/tracking/test_tracking_client.py` covers target selection, rejected URIs,
+  missing credentials, authentication failures, redirects, upload/download hash
+  checks and the version rules without network access.
+- The existing opaque round-trip test
+  (`test_opaque_round_trip_against_existing_mlflow`) passed against DagsHub with
+  `PIPELINE_TRACKING_TEST_URI` set to the DagsHub URI. Its 20 artifacts were
+  checked for the token afterwards (none found); the test experiment was then
+  deleted. Processing and training were test doubles, as in the local run.
+- The PowerShell launcher change and a Docker-based DagsHub run were not executed;
+  they still need a check on Windows.
+
 ## References
 
 - [MLflow 3.17.0 release](https://github.com/mlflow/mlflow/releases/tag/v3.17.0)

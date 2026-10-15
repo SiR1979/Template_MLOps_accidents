@@ -1,4 +1,4 @@
-"""Record new technical pipeline runs through the existing local artifact proxy.
+"""Record new technical pipeline runs through the local or DagsHub artifact proxy.
 
 Tracking transfers model bytes without deserialisation. Historical import and
 evaluation contracts are not used by this module.
@@ -26,6 +26,7 @@ CONFIG_FILES = (
     "scripts/run_tracked_pipeline.ps1",
 )
 RAW_FILES = ("usagers-2021.csv", "caracteristiques-2021.csv", "lieux-2021.csv", "vehicules-2021.csv")
+LOCAL_MLFLOW_VERSION = "3.17.0"
 
 
 class TrackingFailure(RuntimeError):
@@ -82,6 +83,8 @@ class PipelineTracker:
     def __init__(self, uri, context_path, *, storage_root=None, versioning_directory=None,
                  resolved_requirements=None, experiment=EXPERIMENT):
         self.client = LocalClient(uri)
+        self.target = self.client.target
+        self.server_version = None
         self.context_path = Path(context_path)
         self.source_root = Path(__file__).resolve().parents[2]
         self.storage_root = Path(storage_root or self.source_root).resolve()
@@ -94,13 +97,13 @@ class PipelineTracker:
                       "invocation_id": None, "remote_status": "not_created"}
 
     def check_version(self):
-        connection = self.client.connection()
-        try:
-            connection.request("GET", "/version")
-            response = connection.getresponse()
-            require(response.status == 200 and response.read(128).decode().strip() == "3.17.0", "Expected local MLflow 3.17.0 server.")
-        finally:
-            connection.close()
+        version = self.client.server_version()
+        if self.target == "local":
+            require(version == LOCAL_MLFLOW_VERSION, "Expected local MLflow 3.17.0 server.")
+        else:
+            # DagsHub upgrades its server independently; accept MLflow 3.x and record the observed version.
+            require(re.fullmatch(r"3\.\d+\.\d+", version) is not None, "Expected an MLflow 3.x server on DagsHub.")
+        self.server_version = version
 
     def capture_context(self, raw_directory, run_directory):
         require(raw_directory == self.storage_root / "data/raw", "Tracked raw directory is outside the reference input location.")
@@ -189,7 +192,10 @@ class PipelineTracker:
                      "pipeline_run_id": run_directory.name, "pipeline_phase": "tracking_start",
                      "launcher_git_head": self.context["git_head"], "launcher_image_id": self.context["image_id"],
                      "invocation_context_sha256": sha256(self.context_bytes), "approved_for_delivery": "false",
-                     "quality_thresholds_enforced": "false", "evaluation_performed": "false"}
+                     "quality_thresholds_enforced": "false", "evaluation_performed": "false",
+                     "tracking_target": self.target}
+        if self.server_version is not None:
+            self.tags["tracking_server_version"] = self.server_version
         self.state.update(status="unknown", remote_status="unknown")
         created = self.client.post("runs/create", {"experiment_id": experiment_id, "run_name": run_directory.name,
                                   "start_time": int(datetime.fromisoformat(self.started_at).timestamp() * 1000),
