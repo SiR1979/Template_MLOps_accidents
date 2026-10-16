@@ -62,7 +62,11 @@ $root = Identity (Git-Read @('rev-parse', '--show-toplevel'))
 if (-not [IO.Path]::IsPathRooted($root) -or [IO.Path]::GetFullPath($root) -ne $repoPath) { throw 'Repository root differs.' }
 if ((Identity (Git-Read @('branch', '--show-current'))) -notin @('work/level1-foundation', 'master')) { throw 'Unexpected branch; no branch change attempted.' }
 $origin = Identity (Git-Read @('config', '--get', 'remote.origin.url'))
-if ($origin -notin @('https://github.com/SiR1979/Template_MLOps_accidents', 'https://github.com/SiR1979/Template_MLOps_accidents.git', 'git@github.com:SiR1979/Template_MLOps_accidents.git')) { throw 'Unexpected origin; URL withheld.' }
+# The repository was renamed; GitHub still redirects the old name, so existing clones keep it.
+$allowedOrigins = foreach ($name in @('Template_MLOps_accidents', 'prediction_severity_car_accidents')) {
+    'https://github.com/SiR1979/' + $name; 'https://github.com/SiR1979/' + $name + '.git'; 'git@github.com:SiR1979/' + $name + '.git'
+}
+if ($origin -notin $allowedOrigins) { throw 'Unexpected origin; URL withheld.' }
 if ((Git-Read @('diff', '--cached', '--name-only', '--no-ext-diff', '--no-textconv', '--')).Lines.Count -ne 0) { throw 'Existing staged changes were preserved.' }
 $gitHead = Identity (Git-Read @('rev-parse', 'HEAD'))
 $worktree = (Git-Read @('status', '--porcelain=v1', '--untracked-files=all')).Lines
